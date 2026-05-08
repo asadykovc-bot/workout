@@ -1,0 +1,1742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f1117">
+<meta name="description" content="A personal workout app with a timer, progression, and exercise library.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Workout">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>Workout</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d26;
+    --card2: #20242f;
+    --accent: #6ee7b7;
+    --accent2: #38bdf8;
+    --warn: #fb923c;
+    --text: #f0f4ff;
+    --muted: #9aa3b2;
+    --bed: #a78bfa;
+    --floor: #34d399;
+    --strength: #fb923c;
+    --radius: 16px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    min-height: 100vh;
+    padding-bottom: calc(40px + env(safe-area-inset-bottom));
+  }
+
+  button, input, textarea, select {
+    font: inherit;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #1a1d26, #12151e);
+    padding: calc(24px + env(safe-area-inset-top)) 20px 18px;
+    border-bottom: 1px solid #ffffff12;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
+  .header h1 {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--accent);
+  }
+
+  .header p {
+    color: var(--muted);
+    font-size: 14px;
+    margin-top: 4px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    padding: 14px 16px 0;
+  }
+
+  .tab {
+    flex: 1;
+    min-height: 40px;
+    border-radius: 12px;
+    border: 0;
+    background: var(--card);
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .tab.active {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #0f1117;
+  }
+
+  .screen {
+    display: none;
+    padding: 20px;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  .screen.active { display: block; }
+
+  .topline {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .title {
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .time {
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .main-btn, .outline-btn, .save-btn {
+    width: 100%;
+    min-height: 48px;
+    border-radius: var(--radius);
+    border: 0;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .main-btn, .save-btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #0f1117;
+  }
+
+  .outline-btn {
+    background: transparent;
+    border: 2px solid var(--accent);
+    color: var(--accent);
+  }
+
+  .row-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .day-controls {
+    display: grid;
+    grid-template-columns: 46px 1fr 46px;
+    gap: 10px;
+    align-items: center;
+    background: var(--card);
+    border: 1px solid #ffffff10;
+    border-radius: var(--radius);
+    padding: 10px;
+    margin: 12px 0 16px;
+  }
+
+  .day-btn {
+    width: 46px;
+    height: 42px;
+    border-radius: 12px;
+    border: 0;
+    background: var(--card2);
+    color: var(--accent);
+    font-size: 22px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+
+  .day-info {
+    min-width: 0;
+    text-align: center;
+  }
+
+  .day-main {
+    font-weight: 900;
+    font-size: 14px;
+  }
+
+  .day-sub {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 2px;
+  }
+
+  .small-btn {
+    min-height: 42px;
+    border-radius: 12px;
+    border: 0;
+    background: var(--card);
+    color: var(--accent);
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .section-title {
+    font-size: 17px;
+    font-weight: 800;
+    margin-bottom: 16px;
+  }
+
+  .zone-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 20px 0 10px;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+  }
+
+  .zone-label.bed { color: var(--bed); }
+  .zone-label.floor { color: var(--floor); }
+  .zone-label.strength { color: var(--strength); }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .dot.bed { background: var(--bed); }
+  .dot.floor { background: var(--floor); }
+  .dot.strength { background: var(--strength); }
+
+  .card, .list-item, .history-day, .settings-row {
+    background: var(--card);
+    border: 1px solid #ffffff10;
+    border-radius: var(--radius);
+  }
+
+  .card {
+    padding: 16px;
+    margin-bottom: 10px;
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 14px;
+  }
+
+  .card.done {
+    opacity: .5;
+    border-color: var(--accent);
+  }
+
+  .photo {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    background: var(--card2);
+    display: grid;
+    place-items: center;
+    font-size: 28px;
+    overflow: hidden;
+  }
+
+  .photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .photo svg,
+  .list-photo svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .visual-stack {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .visual-stack img,
+  .visual-stack svg {
+    position: absolute;
+    inset: 0;
+  }
+
+  .name {
+    font-size: 15px;
+    font-weight: 850;
+    line-height: 1.25;
+    margin-bottom: 4px;
+  }
+
+  .desc {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+    margin-bottom: 8px;
+  }
+
+  .meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .pill {
+    background: var(--card2);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--accent);
+  }
+
+  .pill.bed { color: var(--bed); }
+  .pill.floor { color: var(--floor); }
+  .pill.strength { color: var(--strength); }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .label {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: 8px;
+  }
+
+  .input, .textarea, .select {
+    width: 100%;
+    border: 1px solid #ffffff14;
+    border-radius: 12px;
+    background: var(--card);
+    color: var(--text);
+    padding: 12px 14px;
+    outline: 0;
+  }
+
+  .textarea {
+    min-height: 90px;
+    resize: vertical;
+  }
+
+  .select option {
+    background: var(--card);
+  }
+
+  .zone-toggle {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .zone-btn {
+    min-height: 42px;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    background: var(--card);
+    color: var(--muted);
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .zone-btn.bed.active { border-color: var(--bed); color: var(--bed); }
+  .zone-btn.floor.active { border-color: var(--floor); color: var(--floor); }
+  .zone-btn.strength.active { border-color: var(--strength); color: var(--strength); }
+
+  .photo-upload {
+    height: 120px;
+    border: 2px dashed #ffffff20;
+    border-radius: 12px;
+    background: var(--card);
+    display: grid;
+    place-items: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+  }
+
+  .photo-upload input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .photo-upload p {
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .preview {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+  }
+
+  .list-item {
+    padding: 14px;
+    display: grid;
+    grid-template-columns: 52px 1fr auto auto auto;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .list-photo {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    background: var(--card2);
+    display: grid;
+    place-items: center;
+    font-size: 23px;
+    overflow: hidden;
+  }
+
+  .list-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .icon-btn {
+    border: 1px solid #ffffff10;
+    border-radius: 10px;
+    background: var(--card2);
+    color: var(--text);
+    font-size: 18px;
+    cursor: pointer;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+  }
+
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 46px 20px;
+    line-height: 1.6;
+  }
+
+  .empty b {
+    display: block;
+    color: var(--text);
+    font-size: 20px;
+    margin-bottom: 6px;
+  }
+
+  .settings-row {
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .settings-row input {
+    width: 90px;
+    text-align: center;
+    font-weight: 900;
+  }
+
+  .sub {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 3px;
+  }
+
+  .history-streak {
+    background: linear-gradient(135deg, #6ee7b722, #38bdf822);
+    border: 1px solid #6ee7b733;
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .history-streak strong {
+    display: block;
+    color: var(--accent);
+    font-size: 34px;
+    line-height: 1;
+  }
+
+  .history-day {
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+
+  .history-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+    font-weight: 800;
+  }
+
+  .history-ex {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid #ffffff08;
+    font-size: 14px;
+  }
+
+  .history-ex:last-child {
+    border-bottom: 0;
+  }
+
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: #0a0c12f2;
+    backdrop-filter: blur(8px);
+    padding: 24px;
+    overflow-y: auto;
+  }
+
+  .overlay.show { display: block; }
+
+  .timer-box, .modal {
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  .timer-box {
+    min-height: calc(100vh - 48px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .timer-top {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .ghost {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .timer-photo {
+    display: none;
+    width: 110px;
+    height: 110px;
+    border-radius: 16px;
+    margin-bottom: 14px;
+    background: var(--card);
+    overflow: hidden;
+  }
+
+  .timer-photo.show { display: block; }
+
+  .timer-photo svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .timer-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .timer-name {
+    font-size: 22px;
+    font-weight: 900;
+    margin-bottom: 8px;
+  }
+
+  .timer-desc {
+    max-width: 420px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-bottom: 16px;
+  }
+
+  .phase {
+    color: var(--accent2);
+    font-weight: 900;
+    letter-spacing: .8px;
+    margin-bottom: 16px;
+  }
+
+  .ring {
+    width: 184px;
+    height: 184px;
+    border-radius: 50%;
+    border: 8px solid #ffffff12;
+    display: grid;
+    place-items: center;
+    margin-bottom: 24px;
+  }
+
+  .seconds {
+    color: var(--accent);
+    font-size: 52px;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .modal {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 560px) {
+    .tabs { padding-inline: 8px; }
+    .tab { font-size: 11px; }
+    .screen { padding: 16px; }
+    .card { grid-template-columns: 54px 1fr; }
+    .photo { width: 54px; height: 54px; }
+    .list-item { grid-template-columns: 46px 1fr auto auto auto; gap: 8px; }
+    .list-photo { width: 46px; height: 46px; }
+  }
+</style>
+</head>
+<body>
+  <header class="header">
+    <h1>Workout</h1>
+    <p id="todayDate"></p>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-screen="today">Today</button>
+    <button class="tab" data-screen="add">New</button>
+    <button class="tab" data-screen="list">Library</button>
+    <button class="tab" data-screen="history">History</button>
+    <button class="tab" data-screen="settings">Settings</button>
+  </nav>
+
+  <main>
+    <section class="screen active" id="screen-today">
+      <div id="todayContent"></div>
+    </section>
+
+    <section class="screen" id="screen-add">
+      <div class="section-title">New Exercise</div>
+      <div class="form-group">
+        <label class="label" for="exName">Name</label>
+        <input class="input" id="exName" placeholder="Example: Glute bridge">
+      </div>
+      <div class="form-group">
+        <label class="label" for="exDesc">Description</label>
+        <textarea class="textarea" id="exDesc" placeholder="How to do the exercise"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="label" for="exDuration">Duration</label>
+        <select class="select" id="exDuration">
+          <option value="30">30 seconds</option>
+          <option value="60" selected>1 minute</option>
+          <option value="90">1.5 minutes</option>
+          <option value="120">2 minutes</option>
+          <option value="30+30">30 + 30 sec, both sides</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <span class="label">Where</span>
+        <div class="zone-toggle">
+          <button class="zone-btn bed active" data-zone="bed">Bed</button>
+          <button class="zone-btn floor" data-zone="floor">Floor</button>
+          <button class="zone-btn strength" data-zone="strength">Strength</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <span class="label">Photo, optional</span>
+        <label class="photo-upload">
+          <input type="file" accept="image/*" id="photoInput">
+          <span>
+            <b>Add photo</b>
+            <p>Tap here and choose an image</p>
+          </span>
+          <img class="preview" id="photoPreview" alt="">
+        </label>
+      </div>
+      <button class="save-btn" id="saveExerciseBtn">Save Exercise</button>
+    </section>
+
+    <section class="screen" id="screen-list">
+      <div class="section-title">Exercise Library</div>
+      <div class="row-actions">
+        <button class="small-btn" id="exportBtn">Export Backup</button>
+        <label class="small-btn" style="display:grid;place-items:center">
+          Import Backup
+          <input class="hidden" type="file" accept=".json" id="importInput">
+        </label>
+      </div>
+      <div id="exerciseList"></div>
+    </section>
+
+    <section class="screen" id="screen-history">
+      <div class="section-title">Workout History</div>
+      <div id="historyContent"></div>
+    </section>
+
+    <section class="screen" id="screen-settings">
+      <div class="section-title">Settings</div>
+      <div class="settings-row">
+        <div>
+          <strong>Starting duration</strong>
+          <div class="sub">minutes</div>
+        </div>
+        <input class="input" id="settingStartMin" type="number" min="5" max="60">
+      </div>
+      <div class="settings-row">
+        <div>
+          <strong>Progression step</strong>
+          <div class="sub">seconds per day</div>
+        </div>
+        <input class="input" id="settingStep" type="number" min="0" max="120">
+      </div>
+      <div class="settings-row">
+        <div>
+          <strong>Current target</strong>
+          <div class="sub" id="currentDurLabel"></div>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div>
+          <strong>Day switching</strong>
+          <div class="sub">Use ‹ and › on Today to test progression days.</div>
+        </div>
+      </div>
+      <button class="save-btn" id="saveSettingsBtn">Save Settings</button>
+      <button class="outline-btn" id="resetProgressBtn" style="margin-top:10px">Reset Progression</button>
+    </section>
+  </main>
+
+  <div class="overlay" id="timerOverlay">
+    <div class="timer-box">
+      <div class="timer-top">
+        <button class="ghost" id="cancelWorkoutBtn">Cancel</button>
+        <button class="ghost" id="editWorkoutBtn">Edit</button>
+      </div>
+      <div class="timer-photo" id="timerPhoto"></div>
+      <div class="timer-name" id="timerName"></div>
+      <div class="timer-desc" id="timerDesc"></div>
+      <div class="phase" id="timerPhase"></div>
+      <div class="ring">
+        <div>
+          <div class="seconds" id="timerSeconds">60</div>
+          <div class="sub">seconds</div>
+        </div>
+      </div>
+      <button class="main-btn" id="timerMainBtn">Start</button>
+      <button class="small-btn" id="skipBtn" style="margin-top:10px">Skip</button>
+      <button class="ghost" id="testSoundBtn" style="margin-top:14px">Test Sound</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="editOverlay">
+    <div class="modal">
+      <div class="section-title">Edit Exercise</div>
+      <input type="hidden" id="editId">
+      <div class="form-group">
+        <label class="label" for="editName">Name</label>
+        <input class="input" id="editName">
+      </div>
+      <div class="form-group">
+        <label class="label" for="editDesc">Description</label>
+        <textarea class="textarea" id="editDesc"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="label" for="editDuration">Duration</label>
+        <select class="select" id="editDuration">
+          <option value="30">30 seconds</option>
+          <option value="60">1 minute</option>
+          <option value="90">1.5 minutes</option>
+          <option value="120">2 minutes</option>
+          <option value="30+30">30 + 30 sec, both sides</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <span class="label">Where</span>
+        <div class="zone-toggle">
+          <button class="zone-btn bed" data-edit-zone="bed">Bed</button>
+          <button class="zone-btn floor" data-edit-zone="floor">Floor</button>
+          <button class="zone-btn strength" data-edit-zone="strength">Strength</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <span class="label">Photo</span>
+        <label class="photo-upload">
+          <input type="file" accept="image/*" id="editPhotoInput">
+          <span id="editPhotoText">
+            <b>Add or replace photo</b>
+            <p>Tap here and choose an image</p>
+          </span>
+          <img class="preview" id="editPhotoPreview" alt="">
+        </label>
+      </div>
+      <div class="row-actions" style="margin-bottom:0">
+        <button class="small-btn" id="closeEditBtn">Cancel</button>
+        <button class="save-btn" id="saveEditBtn">Save</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const storage = {
+  get(key, fallback) {
+    try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
+    catch { return fallback; }
+  },
+  set(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+};
+
+let exercises = storage.get('zaryadka_exercises', []);
+let todayWorkout = storage.get('zaryadka_todayWorkout', null);
+let todayDateStr = localStorage.getItem('zaryadka_todayDate') || '';
+let workoutHistory = storage.get('zaryadka_history', []);
+let strengthIndex = Number(localStorage.getItem('zaryadka_strengthIndex') || 0);
+let settingStartSec = Number(localStorage.getItem('zaryadka_startSec') || 600);
+let settingStep = Number(localStorage.getItem('zaryadka_stepSec') || 10);
+let progressionDay = Number(localStorage.getItem('zaryadka_day') || 0);
+const workoutVersion = 3;
+const libraryVersion = 3;
+
+let currentZone = 'bed';
+let currentPhotoData = null;
+let editZone = 'bed';
+let editPhotoData = null;
+let editingDuringWorkout = false;
+let currentExIndex = 0;
+let doneIndexes = new Set();
+let timerInterval = null;
+let timerRunning = false;
+let timerSecondsLeft = 0;
+let timerPhaseIndex = 0;
+let timerPhases = [];
+let audioCtx = null;
+
+const defaults = [
+  {id:1,name:'Diaphragmatic breathing',desc:'Lie on your back with one hand on your belly. Inhale slowly through your nose and let the belly rise; make the exhale longer than the inhale.',duration:'60',zone:'bed',phase:'mobility',difficulty:1,body:'core',diagram:'breathing',photo:null},
+  {id:2,name:'Pelvic tilt',desc:'Lie on your back with knees bent. Gently press your lower back toward the surface, hold for 3-5 seconds, then relax.',duration:'60',zone:'bed',phase:'mobility',difficulty:1,body:'back',diagram:'supine',photo:null},
+  {id:3,name:'Heel slide',desc:'Lie on your back. Slowly slide one heel out and back, bending and straightening the leg. Alternate legs without jerking.',duration:'60',zone:'bed',phase:'mobility',difficulty:1,body:'hips',diagram:'supine-leg',photo:null},
+  {id:4,name:'Knee-to-chest stretch',desc:'Lie on your back. Pull one knee toward your chest until you feel a gentle low-back stretch. Switch legs.',duration:'30+30',zone:'bed',phase:'stretch',difficulty:1,body:'back',diagram:'knee-chest',photo:null},
+  {id:5,name:'Supine twist',desc:'Lie on your back with arms out. Drop bent knees to one side, then the other, keeping the movement easy.',duration:'30+30',zone:'bed',phase:'stretch',difficulty:1,body:'back',diagram:'twist',photo:null},
+  {id:6,name:'Hamstring stretch',desc:'Lie on your back. Raise one straight leg and hold behind the thigh or use a towel. Switch legs.',duration:'30+30',zone:'bed',phase:'stretch',difficulty:1,body:'legs',diagram:'hamstring',photo:null},
+  {id:7,name:'Piriformis stretch',desc:'Place one ankle on the opposite knee and gently pull the thigh toward you. Switch sides.',duration:'30+30',zone:'bed',phase:'stretch',difficulty:1,body:'hips',diagram:'figure4',photo:null},
+  {id:8,name:'Floor chest opener',desc:'Lie on your back with arms out or behind your head. Gently open the chest and shoulders while breathing evenly.',duration:'60',zone:'bed',phase:'stretch',difficulty:1,body:'shoulders',diagram:'chest-open',photo:null},
+  {id:9,name:'Dead bug',desc:'Lie on your back with arms up and knees bent. Lower the opposite arm and leg while keeping the low back calm.',duration:'60',zone:'bed',phase:'stability',difficulty:2,body:'core',diagram:'deadbug',photo:null},
+  {id:10,name:'Glute bridge',desc:'Lie on your back with knees bent. Lift your hips, keep the trunk steady, then lower with control.',duration:'60',zone:'bed',phase:'stability',difficulty:2,body:'hips',diagram:'bridge',photo:null},
+  {id:11,name:'Clam shell',desc:'Lie on your side with knees bent. Lift the top knee while keeping feet together. Switch sides.',duration:'30+30',zone:'bed',phase:'stability',difficulty:2,body:'hips',diagram:'side-lying',photo:null},
+  {id:12,name:'Side leg raise',desc:'Lie on your side. Lift the top straight leg a little, keeping the pelvis from rolling. Switch sides.',duration:'30+30',zone:'bed',phase:'stability',difficulty:2,body:'legs',diagram:'side-leg',photo:null},
+
+  {id:13,name:'Cat-cow',desc:'Start on hands and knees. Gently arch the back on the inhale and round it on the exhale. Move slowly.',duration:'60',zone:'floor',phase:'mobility',difficulty:1,body:'back',diagram:'catcow',photo:null},
+  {id:14,name:'Child pose',desc:'Sit back toward your heels and reach your arms forward on the floor. Relax the back and breathe calmly.',duration:'60',zone:'floor',phase:'stretch',difficulty:1,body:'back',diagram:'child',photo:null},
+  {id:15,name:'Thread the needle',desc:'Start on hands and knees. Reach one arm under your body and lower the shoulder toward the floor. Switch sides.',duration:'30+30',zone:'floor',phase:'mobility',difficulty:1,body:'shoulders',diagram:'thread',photo:null},
+  {id:16,name:'Mid-back rotation',desc:'Start on hands and knees with one hand behind your head. Bring the elbow down, then rotate the chest upward. Switch sides.',duration:'30+30',zone:'floor',phase:'mobility',difficulty:1,body:'back',diagram:'rotation',photo:null},
+  {id:17,name:'Sphinx pose',desc:'Lie on your stomach on your forearms. Gently lengthen the chest forward without pain in the low back.',duration:'60',zone:'floor',phase:'mobility',difficulty:1,body:'back',diagram:'sphinx',photo:null},
+  {id:18,name:'Bird dog',desc:'Start on hands and knees. Extend the opposite arm and leg, hold 2-3 seconds, then switch sides.',duration:'60',zone:'floor',phase:'stability',difficulty:2,body:'core',diagram:'birddog',photo:null},
+  {id:19,name:'Knee plank',desc:'Rest on knees and forearms. Keep the body straight, gently brace the belly, and breathe evenly.',duration:'60',zone:'floor',phase:'stability',difficulty:2,body:'core',diagram:'knee-plank',photo:null},
+  {id:20,name:'Kneeling shoulder taps',desc:'From hands and knees, tap the opposite shoulder one side at a time while keeping the pelvis steady.',duration:'60',zone:'floor',phase:'stability',difficulty:2,body:'shoulders',diagram:'quad',photo:null},
+  {id:21,name:'Supported squat',desc:'Sit the hips back toward a bed or chair and stand back up. Let the knees track in the same direction as the toes.',duration:'60',zone:'floor',phase:'strength',difficulty:2,body:'legs',diagram:'squat',photo:null},
+  {id:22,name:'Standing side bend',desc:'Stand with feet hip-width apart. Slowly bend to one side, return, then repeat on the other side.',duration:'60',zone:'floor',phase:'mobility',difficulty:1,body:'back',diagram:'sidebend',photo:null},
+  {id:23,name:'Wall calf stretch',desc:'Place hands on a wall with one leg back and heel down. Feel the calf stretch, then switch legs.',duration:'30+30',zone:'floor',phase:'stretch',difficulty:1,body:'legs',diagram:'calf',photo:null},
+  {id:24,name:'Shoulder stretch',desc:'Bring one arm across your chest and gently support it with the other arm. Switch sides.',duration:'30+30',zone:'floor',phase:'stretch',difficulty:1,body:'shoulders',diagram:'shoulder',photo:null},
+
+  {id:25,name:'Wall push-up',desc:'Place hands on a wall with the body straight. Bend the elbows and push back without sagging through the low back.',duration:'60',zone:'strength',phase:'strength',difficulty:1,body:'chest',diagram:'wall-push',photo:null},
+  {id:26,name:'Knee push-up',desc:'Knees on the floor, hands a bit wider than shoulders. Lower with control and push the floor away.',duration:'60',zone:'strength',phase:'strength',difficulty:2,body:'chest',diagram:'pushup',photo:null},
+  {id:27,name:'Bodyweight squat',desc:'Feet about shoulder-width. Sit back and down, keep the chest open, and stand through the whole foot.',duration:'60',zone:'strength',phase:'strength',difficulty:2,body:'legs',diagram:'squat',photo:null},
+  {id:28,name:'Wall sit',desc:'Lean your back against a wall. Slide down like sitting in a chair and hold a comfortable depth.',duration:'60',zone:'strength',phase:'strength',difficulty:2,body:'legs',diagram:'wallsit',photo:null},
+  {id:29,name:'Reverse lunge',desc:'Step back, softly bend both knees, and return. Hold a wall if you need balance support.',duration:'60',zone:'strength',phase:'strength',difficulty:3,body:'legs',diagram:'lunge',photo:null},
+  {id:30,name:'Bodyweight good morning',desc:'Hands on hips or chest. Hinge the hips back with a long spine, then return upright.',duration:'60',zone:'strength',phase:'strength',difficulty:2,body:'back',diagram:'hinge',photo:null},
+  {id:31,name:'Standing march',desc:'March in place, lifting knees to a comfortable height. Keep the torso tall.',duration:'60',zone:'strength',phase:'strength',difficulty:1,body:'cardio',diagram:'march',photo:null},
+  {id:32,name:'Step jack',desc:'Step to the side and reach arms up, then return. Alternate sides with energy but without jumping.',duration:'60',zone:'strength',phase:'strength',difficulty:2,body:'cardio',diagram:'stepjack',photo:null},
+  {id:33,name:'Plank',desc:'Rest on forearms and toes. Keep the body straight and avoid holding your breath.',duration:'60',zone:'strength',phase:'strength',difficulty:3,body:'core',diagram:'plank',photo:null},
+  {id:34,name:'Kneeling side plank',desc:'Support yourself on one forearm and knee. Lift the hips and keep a long side-body line. Switch sides.',duration:'30+30',zone:'strength',phase:'strength',difficulty:3,body:'core',diagram:'sideplank',photo:null},
+  {id:35,name:'Superman light',desc:'Lie on your stomach. Lift the chest and arms a little with a long neck, then lower with control.',duration:'60',zone:'strength',phase:'strength',difficulty:2,body:'back',diagram:'superman',photo:null},
+  {id:36,name:'Calf raises',desc:'Stand near a wall or chair. Rise onto the balls of your feet and lower slowly.',duration:'60',zone:'strength',phase:'strength',difficulty:1,body:'legs',diagram:'calfraise',photo:null}
+];
+
+function init() {
+  if (!exercises.length || Number(localStorage.getItem('zaryadka_libraryVersion') || 0) !== libraryVersion) {
+    exercises = defaults;
+    saveExercises();
+    todayWorkout = null;
+    localStorage.setItem('zaryadka_libraryVersion', libraryVersion);
+  }
+
+  if (Number(localStorage.getItem('zaryadka_workoutVersion') || 0) !== workoutVersion) {
+    todayWorkout = null;
+    localStorage.setItem('zaryadka_workoutVersion', workoutVersion);
+  }
+
+  document.getElementById('todayDate').textContent =
+    new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  bindEvents();
+  checkTodayWorkout();
+  renderToday();
+  renderList();
+  renderHistory();
+  renderSettings();
+}
+
+function bindEvents() {
+  document.querySelectorAll('.tab').forEach(button => {
+    button.addEventListener('click', () => showScreen(button.dataset.screen, button));
+  });
+
+  document.querySelectorAll('[data-zone]').forEach(button => {
+    button.addEventListener('click', () => setZone(button.dataset.zone));
+  });
+
+  document.querySelectorAll('[data-edit-zone]').forEach(button => {
+    button.addEventListener('click', () => setEditZone(button.dataset.editZone));
+  });
+
+  document.getElementById('photoInput').addEventListener('change', event => handlePhoto(event, 'photoPreview'));
+  document.getElementById('editPhotoInput').addEventListener('change', event => handlePhoto(event, 'editPhotoPreview'));
+  document.getElementById('saveExerciseBtn').addEventListener('click', saveExercise);
+  document.getElementById('exportBtn').addEventListener('click', exportData);
+  document.getElementById('importInput').addEventListener('change', importData);
+  document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+  document.getElementById('resetProgressBtn').addEventListener('click', resetProgress);
+  document.getElementById('timerMainBtn').addEventListener('click', timerAction);
+  document.getElementById('skipBtn').addEventListener('click', skipExercise);
+  document.getElementById('cancelWorkoutBtn').addEventListener('click', cancelWorkout);
+  document.getElementById('editWorkoutBtn').addEventListener('click', openInWorkoutEdit);
+  document.getElementById('testSoundBtn').addEventListener('click', testBeeps);
+  document.getElementById('closeEditBtn').addEventListener('click', closeEdit);
+  document.getElementById('saveEditBtn').addEventListener('click', saveEdit);
+}
+
+function showScreen(name, button) {
+  document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  button.classList.add('active');
+  if (name === 'today') renderToday();
+  if (name === 'list') renderList();
+  if (name === 'history') renderHistory();
+  if (name === 'settings') renderSettings();
+}
+
+function zoneIcon(zone) {
+  if (zone === 'bed') return '🛏️';
+  if (zone === 'strength') return '💪';
+  return '🧘';
+}
+
+function zoneText(zone) {
+  if (zone === 'bed') return 'Bed';
+  if (zone === 'strength') return 'Strength';
+  return 'Floor';
+}
+
+function phaseText(phase) {
+  if (phase === 'mobility') return 'Mobility';
+  if (phase === 'stretch') return 'Stretch';
+  if (phase === 'stability') return 'Stability';
+  return 'Strength';
+}
+
+function dayMode() {
+  const modes = [
+    { id: 'easy', title: 'Easy Day', strength: 1, difficultyBonus: 0 },
+    { id: 'normal', title: 'Regular Day', strength: 2, difficultyBonus: 1 },
+    { id: 'strong', title: 'More Strength', strength: 3, difficultyBonus: 1 }
+  ];
+  return modes[progressionDay % modes.length];
+}
+
+function durationSeconds(duration) {
+  return duration === '30+30' ? 60 : Number(duration);
+}
+
+function durationLabel(duration) {
+  if (duration === '30+30') return '30+30 sec';
+  const seconds = Number(duration);
+  return seconds >= 60 ? `${seconds / 60} min` : `${seconds} sec`;
+}
+
+function budgetSeconds() {
+  return settingStartSec + progressionDay * settingStep;
+}
+
+function checkTodayWorkout() {
+  const today = new Date().toDateString();
+  if (todayDateStr !== today || !todayWorkout) {
+    todayWorkout = generateWorkout();
+    todayDateStr = today;
+    progressionDay += 1;
+    localStorage.setItem('zaryadka_todayDate', todayDateStr);
+    localStorage.setItem('zaryadka_day', progressionDay);
+    storage.set('zaryadka_todayWorkout', todayWorkout);
+  }
+}
+
+function generateWorkout() {
+  const shuffle = list => [...list].sort(() => Math.random() - 0.5);
+  const budget = budgetSeconds();
+  const mode = dayMode();
+  const difficultyCap = Math.min(3, 1 + Math.floor(progressionDay / 10) + mode.difficultyBonus);
+  const strengthTarget = Math.min(4, mode.strength + Math.floor(progressionDay / 20));
+  const picked = [];
+  const usedBodies = new Set();
+  let used = 0;
+
+  const addFrom = (zone, phases, count, allowSameBody = false) => {
+    phases.forEach(phase => {
+      if (picked.filter(ex => ex.zone === zone && ex.phase === phase).length >= count) return;
+      const pool = shuffle(exercises.filter(ex =>
+        ex.zone === zone &&
+        ex.phase === phase &&
+        ex.difficulty <= difficultyCap &&
+        !picked.some(item => item.id === ex.id)
+      ));
+      for (const ex of pool) {
+        const total = durationSeconds(ex.duration);
+        const bodyRepeated = usedBodies.has(ex.body);
+        if (used + total > budget) continue;
+        if (!allowSameBody && bodyRepeated && pool.some(item => !usedBodies.has(item.body))) continue;
+        picked.push(ex);
+        used += total;
+        usedBodies.add(ex.body);
+        break;
+      }
+    });
+  };
+
+  addFrom('bed', ['mobility', 'stretch', 'stability'], 1);
+  addFrom('floor', ['mobility', 'stretch', 'stability'], 1);
+
+  const strengthPool = exercises.filter(ex => ex.zone === 'strength' && ex.difficulty <= difficultyCap);
+  const orderedStrength = strengthPool.length
+    ? [...strengthPool.slice(strengthIndex), ...strengthPool.slice(0, strengthIndex)]
+    : [];
+  let strengthPicked = 0;
+  for (const ex of orderedStrength) {
+    if (strengthPicked >= strengthTarget) break;
+    if (picked.some(item => item.id === ex.id)) continue;
+    if (usedBodies.has(ex.body) && orderedStrength.some(item => !usedBodies.has(item.body))) continue;
+    const total = durationSeconds(ex.duration);
+    if (used + total > budget) continue;
+    picked.push(ex);
+    used += total;
+    usedBodies.add(ex.body);
+    strengthPicked += 1;
+  }
+  strengthIndex = strengthPool.length ? (strengthIndex + Math.max(1, strengthPicked)) % strengthPool.length : 0;
+  localStorage.setItem('zaryadka_strengthIndex', strengthIndex);
+
+  const fillOrder = [
+    ['bed', ['mobility', 'stretch', 'stability']],
+    ['floor', ['mobility', 'stretch', 'stability']],
+    ['strength', ['strength']]
+  ];
+
+  let added = true;
+  while (added) {
+    added = false;
+    for (const [zone, phases] of fillOrder) {
+      if (zone === 'strength' && picked.filter(ex => ex.zone === 'strength').length >= strengthTarget) continue;
+      const pool = shuffle(exercises.filter(ex =>
+        ex.zone === zone &&
+        phases.includes(ex.phase) &&
+        ex.difficulty <= difficultyCap &&
+        !picked.some(item => item.id === ex.id)
+      ));
+      const candidate = pool.find(ex => used + durationSeconds(ex.duration) <= budget && !usedBodies.has(ex.body))
+        || pool.find(ex => used + durationSeconds(ex.duration) <= budget);
+      if (candidate) {
+        picked.push(candidate);
+        used += durationSeconds(candidate.duration);
+        usedBodies.add(candidate.body);
+        added = true;
+      }
+    }
+  }
+
+  const zoneOrder = { bed: 0, floor: 1, strength: 2 };
+  const phaseOrder = { mobility: 0, stretch: 1, stability: 2, strength: 3 };
+  return picked.sort((a, b) =>
+    zoneOrder[a.zone] - zoneOrder[b.zone] ||
+    phaseOrder[a.phase] - phaseOrder[b.phase] ||
+    a.difficulty - b.difficulty
+  );
+}
+
+function renderToday() {
+  const container = document.getElementById('todayContent');
+  if (!todayWorkout || !todayWorkout.length) {
+    container.innerHTML = '<div class="empty"><b>No exercises</b>Add exercises to the library.</div>';
+    return;
+  }
+
+  const budget = budgetSeconds();
+  const budgetMins = Math.floor(budget / 60);
+  const budgetSecs = budget % 60;
+  const budgetTime = budgetSecs ? `${budgetMins} min ${budgetSecs} sec` : `${budgetMins} min`;
+  const plannedSeconds = todayWorkout.reduce((sum, ex) => sum + durationSeconds(ex.duration), 0);
+  const plannedMins = Math.floor(plannedSeconds / 60);
+  const plannedSecs = plannedSeconds % 60;
+  const plannedTime = plannedSecs ? `${plannedMins} min ${plannedSecs} sec` : `${plannedMins} min`;
+  const mode = dayMode();
+  const zones = ['bed', 'floor', 'strength'];
+
+  let html = `
+    <div class="topline">
+      <div class="title">Today's Workout</div>
+      <div class="time">${plannedTime}</div>
+    </div>
+    <div class="day-controls">
+      <button class="day-btn" onclick="changeProgressionDay(-1)" title="Previous day">‹</button>
+      <div class="day-info">
+        <div class="day-main">${mode.title} · day ${progressionDay}</div>
+        <div class="day-sub">${todayWorkout.length} exercises · target ${budgetTime}</div>
+      </div>
+      <button class="day-btn" onclick="changeProgressionDay(1)" title="Next day">›</button>
+    </div>
+    <button class="main-btn" onclick="regenerateWorkout()">New Set</button>
+  `;
+
+  zones.forEach(zone => {
+    const items = todayWorkout.filter(ex => ex.zone === zone);
+    if (!items.length) return;
+    html += `<div class="zone-label ${zone}"><span class="dot ${zone}"></span>${zoneText(zone)}</div>`;
+    items.forEach(ex => {
+      const index = todayWorkout.indexOf(ex);
+      html += renderExerciseCard(ex, index);
+    });
+  });
+
+  html += '<button class="outline-btn" style="margin-top:8px" onclick="startWorkout()">Start Workout</button>';
+  container.innerHTML = html;
+}
+
+function renderExerciseCard(ex, index) {
+  const photo = exerciseVisual(ex);
+  return `
+    <article class="card ${doneIndexes.has(index) ? 'done' : ''}">
+      <div class="photo">${photo}</div>
+      <div>
+        <div class="name">${escapeHtml(ex.name)}</div>
+        <div class="desc">${escapeHtml(ex.desc || '')}</div>
+        <div class="meta">
+          <span class="pill">${durationLabel(ex.duration)}</span>
+          <span class="pill ${ex.zone}">${zoneIcon(ex.zone)} ${zoneText(ex.zone)}</span>
+          <span class="pill">${phaseText(ex.phase)}</span>
+          <span class="pill">level ${ex.difficulty}</span>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function exerciseVisual(ex) {
+  const url = ex.photo;
+  if (url) return `<span class="visual-stack">${exerciseArt(ex)}<img src="${url}" alt="${escapeHtml(ex.name)}" loading="lazy" onerror="this.remove()"></span>`;
+  return exerciseArt(ex);
+}
+
+function exerciseArt(ex) {
+  const pose = ex.diagram || 'stand';
+  const color = ex.zone === 'bed' ? '#a78bfa' : ex.zone === 'strength' ? '#fb923c' : '#34d399';
+  const common = `
+    <rect width="100" height="100" rx="18" fill="#20242f"/>
+    <path d="M14 78 H86" stroke="#5b6475" stroke-width="4" stroke-linecap="round"/>
+  `;
+  const head = (x, y) => `<circle cx="${x}" cy="${y}" r="6" fill="${color}"/>`;
+  const limb = path => `<path d="${path}" fill="none" stroke="#f0f4ff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const accent = path => `<path d="${path}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const poses = {
+    breathing: `${head(38,46)}${limb('M44 50 L68 57 L78 72 M52 58 L42 73')}${accent('M34 62 C40 54 50 54 56 62')}`,
+    supine: `${head(24,66)}${limb('M31 68 L58 68 L78 76 M57 68 L76 62')}${accent('M40 56 C48 50 58 50 66 56')}`,
+    'supine-leg': `${head(24,66)}${limb('M31 68 L58 68 L78 76 M56 68 L72 48')}${accent('M70 50 L78 44')}`,
+    'knee-chest': `${head(24,67)}${limb('M31 69 L54 69 L70 76 M49 68 L60 52 L72 59')}${accent('M48 52 L61 52')}`,
+    twist: `${head(25,60)}${limb('M32 62 L55 62 L72 74 M55 62 L73 52')}${accent('M42 47 C56 39 70 42 78 51')}`,
+    hamstring: `${head(24,70)}${limb('M31 72 L55 72 L75 78 M54 72 L62 38')}${accent('M62 38 L70 44')}`,
+    figure4: `${head(24,68)}${limb('M31 70 L53 70 L72 76 M49 69 L62 54 L75 60')}${accent('M57 57 L70 70')}`,
+    'chest-open': `${head(50,50)}${limb('M38 58 L62 58 M39 58 L22 48 M61 58 L78 48 M44 69 L32 78 M56 69 L68 78')}`,
+    deadbug: `${head(50,58)}${limb('M45 64 L34 45 M55 64 L68 45 M46 70 L34 82 M54 70 L69 78')}${accent('M34 45 L28 38 M68 45 L74 38')}`,
+    bridge: `${head(22,71)}${limb('M29 73 L46 60 L66 64 L80 76 M50 62 L45 77')}${accent('M43 60 C52 48 67 52 72 64')}`,
+    'side-lying': `${head(23,70)}${limb('M31 72 L58 72 L78 76 M50 71 L64 60 L78 63')}${accent('M62 60 L70 51')}`,
+    'side-leg': `${head(23,72)}${limb('M31 74 L56 74 L78 78 M52 73 L74 52')}${accent('M72 52 L80 48')}`,
+    catcow: `${head(72,50)}${limb('M29 62 C42 48 58 48 72 61 M36 63 L32 79 M61 62 L67 79')}${accent('M39 51 C49 42 61 43 69 52')}`,
+    child: `${head(70,67)}${limb('M63 69 L43 64 L28 73 M45 64 L34 80 M64 70 L80 75')}${accent('M28 73 H18')}`,
+    thread: `${head(68,57)}${limb('M34 63 L56 63 L70 72 M38 64 L32 80 M55 63 L62 80')}${accent('M55 62 L28 52')}`,
+    rotation: `${head(64,50)}${limb('M31 66 L54 62 L66 72 M36 66 L32 81 M54 63 L60 82')}${accent('M57 58 L72 38')}`,
+    sphinx: `${head(70,56)}${limb('M24 72 L50 68 L70 68 M52 68 L49 79 M68 68 L76 79')}${accent('M56 60 C62 50 70 49 76 58')}`,
+    birddog: `${head(58,48)}${limb('M28 62 L52 62 L66 75 M35 63 L31 80 M52 62 L75 50')}${accent('M31 62 L15 50 M64 65 L83 77')}`,
+    'knee-plank': `${head(72,55)}${limb('M30 64 L56 64 L73 61 M38 64 L32 78 M55 65 L66 78')}${accent('M35 64 L58 64')}`,
+    quad: `${head(64,50)}${limb('M32 63 L55 63 L67 72 M37 64 L32 80 M55 63 L61 80')}${accent('M44 62 L61 48')}`,
+    squat: `${head(52,28)}${limb('M52 35 L47 53 L34 70 M47 53 L62 69 M42 46 L28 48 M55 46 L72 45')}${accent('M34 70 H26 M62 69 H75')}`,
+    sidebend: `${head(50,28)}${limb('M50 35 C45 48 43 60 39 73 M50 36 L63 52 M46 50 L30 46')}${accent('M63 52 L75 63')}`,
+    calf: `${head(62,29)}${limb('M62 36 L56 55 L45 78 M56 55 L73 77 M56 43 L76 43')}${accent('M72 42 H86')}`,
+    shoulder: `${head(50,28)}${limb('M50 36 L50 62 L39 78 M50 62 L61 78 M34 47 L66 47')}${accent('M66 47 L76 41')}`,
+    'wall-push': `${head(58,30)}${limb('M58 37 L50 56 L42 78 M50 56 L65 77 M52 45 L78 45')}${accent('M84 20 V82')}`,
+    pushup: `${head(72,55)}${limb('M28 68 L54 64 L73 61 M38 67 L31 80 M55 64 L67 78')}${accent('M28 68 L54 64')}`,
+    wallsit: `${head(67,31)}${limb('M67 38 L64 55 L48 57 L40 77 M64 55 L78 77')}${accent('M84 18 V82')}`,
+    lunge: `${head(52,28)}${limb('M52 35 L50 53 L35 75 M50 53 L70 74 M43 45 L31 55 M57 45 L70 55')}${accent('M35 75 H24 M70 74 H82')}`,
+    hinge: `${head(62,34)}${limb('M60 41 L45 54 L38 77 M45 54 L62 77 M48 48 L31 44')}${accent('M45 54 L68 54')}`,
+    march: `${head(50,28)}${limb('M50 35 L50 58 L39 78 M50 58 L65 64 L72 54 M42 45 L31 55 M58 45 L70 35')}${accent('M66 64 L75 64')}`,
+    stepjack: `${head(50,27)}${limb('M50 34 L50 57 L34 78 M50 57 L70 78 M42 43 L28 31 M58 43 L72 31')}${accent('M34 78 H22 M70 78 H82')}`,
+    plank: `${head(76,56)}${limb('M25 68 L55 64 L76 62 M34 67 L27 80 M56 64 L72 78')}${accent('M25 68 L56 64')}`,
+    sideplank: `${head(65,40)}${limb('M62 47 L48 62 L38 78 M48 62 L72 76 M54 54 L70 28')}${accent('M39 78 H28')}`,
+    superman: `${head(65,58)}${limb('M32 70 L55 66 L70 68 M50 66 L28 55 M56 67 L78 55 M42 70 L28 79 M57 69 L78 78')}`,
+    calfraise: `${head(52,28)}${limb('M52 35 L52 58 L42 78 M52 58 L64 78 M43 45 L32 53 M60 45 L72 53')}${accent('M40 80 L31 76 M64 80 L74 76')}`,
+    stand: `${head(50,28)}${limb('M50 35 L50 58 L39 78 M50 58 L61 78 M40 45 L30 55 M60 45 L70 55')}`
+  };
+
+  return `<svg viewBox="0 0 100 100" role="img" aria-label="${escapeHtml(ex.name)}">${common}${poses[pose] || poses.stand}</svg>`;
+}
+
+function regenerateWorkout() {
+  todayWorkout = generateWorkout();
+  doneIndexes = new Set();
+  storage.set('zaryadka_todayWorkout', todayWorkout);
+  renderToday();
+}
+
+function changeProgressionDay(delta) {
+  progressionDay = Math.max(0, progressionDay + delta);
+  localStorage.setItem('zaryadka_day', progressionDay);
+  todayWorkout = generateWorkout();
+  doneIndexes = new Set();
+  storage.set('zaryadka_todayWorkout', todayWorkout);
+  renderToday();
+  renderSettings();
+}
+
+function startWorkout() {
+  currentExIndex = 0;
+  doneIndexes = new Set();
+  showExercise(0);
+}
+
+function showExercise(index) {
+  if (index >= todayWorkout.length) {
+    completeWorkout();
+    return;
+  }
+
+  currentExIndex = index;
+  const ex = todayWorkout[index];
+  const photo = document.getElementById('timerPhoto');
+
+  photo.innerHTML = exerciseVisual(ex);
+  photo.classList.add('show');
+
+  document.getElementById('timerName').textContent = ex.name;
+  document.getElementById('timerDesc').textContent = ex.desc || '';
+
+  timerPhases = ex.duration === '30+30'
+    ? [{ label: 'RIGHT SIDE', seconds: 30 }, { label: 'LEFT SIDE', seconds: 30 }]
+    : [{ label: 'GO', seconds: Number(ex.duration) }];
+
+  timerPhaseIndex = 0;
+  loadPhase();
+  document.getElementById('timerOverlay').classList.add('show');
+}
+
+function loadPhase() {
+  const phase = timerPhases[timerPhaseIndex];
+  timerSecondsLeft = phase.seconds;
+  timerRunning = false;
+  clearInterval(timerInterval);
+  document.getElementById('timerPhase').textContent = phase.label;
+  document.getElementById('timerSeconds').textContent = timerSecondsLeft;
+  document.getElementById('timerMainBtn').textContent = 'Start';
+}
+
+function timerAction() {
+  if (timerRunning) {
+    timerRunning = false;
+    clearInterval(timerInterval);
+    document.getElementById('timerMainBtn').textContent = 'Resume';
+    return;
+  }
+
+  timerRunning = true;
+  document.getElementById('timerMainBtn').textContent = 'Pause';
+  timerInterval = setInterval(() => {
+    timerSecondsLeft -= 1;
+    document.getElementById('timerSeconds').textContent = timerSecondsLeft;
+    if (timerSecondsLeft > 0 && timerSecondsLeft <= 3) playBeep(timerSecondsLeft === 1 ? 880 : 440);
+    if (timerSecondsLeft <= 0) {
+      clearInterval(timerInterval);
+      timerRunning = false;
+      nextPhase();
+    }
+  }, 1000);
+}
+
+function nextPhase() {
+  timerPhaseIndex += 1;
+  if (timerPhaseIndex < timerPhases.length) {
+    setTimeout(loadPhase, 500);
+    return;
+  }
+
+  doneIndexes.add(currentExIndex);
+  document.getElementById('timerOverlay').classList.remove('show');
+  renderToday();
+  setTimeout(() => showExercise(currentExIndex + 1), 350);
+}
+
+function skipExercise() {
+  clearInterval(timerInterval);
+  timerRunning = false;
+  document.getElementById('timerOverlay').classList.remove('show');
+  setTimeout(() => showExercise(currentExIndex + 1), 250);
+}
+
+function cancelWorkout() {
+  clearInterval(timerInterval);
+  timerRunning = false;
+  doneIndexes = new Set();
+  document.getElementById('timerOverlay').classList.remove('show');
+  renderToday();
+}
+
+function completeWorkout() {
+  document.getElementById('timerOverlay').classList.remove('show');
+  workoutHistory.unshift({
+    date: new Date().toISOString(),
+    exercises: todayWorkout.map(ex => ({ name: ex.name, duration: ex.duration, zone: ex.zone }))
+  });
+  workoutHistory = workoutHistory.slice(0, 80);
+  storage.set('zaryadka_history', workoutHistory);
+  document.getElementById('todayContent').innerHTML = `
+    <div class="empty">
+      <b>Nice work!</b>
+      Workout complete.
+      <br><br>
+      <button class="main-btn" onclick="regenerateWorkout()">Repeat</button>
+    </div>
+  `;
+  renderHistory();
+}
+
+function setZone(zone) {
+  currentZone = zone;
+  document.querySelectorAll('[data-zone]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.zone === zone);
+  });
+}
+
+function handlePhoto(event, previewId) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const data = reader.result;
+    const preview = document.getElementById(previewId);
+    preview.src = data;
+    preview.style.display = 'block';
+    if (previewId === 'photoPreview') currentPhotoData = data;
+    if (previewId === 'editPhotoPreview') {
+      editPhotoData = data;
+      document.getElementById('editPhotoText').style.display = 'none';
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveExercise() {
+  const name = document.getElementById('exName').value.trim();
+  const desc = document.getElementById('exDesc').value.trim();
+  const duration = document.getElementById('exDuration').value;
+
+  if (!name) {
+    alert('Enter an exercise name');
+    return;
+  }
+
+  exercises.push({
+    id: Date.now(),
+    name,
+    desc,
+    duration,
+    zone: currentZone,
+    phase: currentZone === 'strength' ? 'strength' : 'mobility',
+    difficulty: 1,
+    body: 'custom',
+    diagram: currentZone === 'strength' ? 'stand' : 'supine',
+    photo: currentPhotoData
+  });
+
+  saveExercises();
+  document.getElementById('exName').value = '';
+  document.getElementById('exDesc').value = '';
+  document.getElementById('exDuration').value = '60';
+  document.getElementById('photoPreview').style.display = 'none';
+  currentPhotoData = null;
+  setZone('bed');
+  renderList();
+  alert('Exercise added');
+}
+
+function renderList() {
+  const container = document.getElementById('exerciseList');
+  if (!exercises.length) {
+    container.innerHTML = '<div class="empty"><b>Library is empty</b>Add your first exercise.</div>';
+    return;
+  }
+
+  let html = '';
+  ['bed', 'floor', 'strength'].forEach(zone => {
+    const items = exercises.filter(ex => ex.zone === zone);
+    if (!items.length) return;
+    html += `<div class="zone-label ${zone}"><span class="dot ${zone}"></span>${zoneText(zone)}</div>`;
+    items.forEach(ex => {
+      const photo = exerciseVisual(ex);
+      html += `
+        <article class="list-item">
+          <div class="list-photo">${photo}</div>
+          <div>
+            <div class="name">${escapeHtml(ex.name)}</div>
+            <div class="desc">${escapeHtml(ex.desc || '')}</div>
+            <div class="meta">
+              <span class="pill">${durationLabel(ex.duration)}</span>
+              <span class="pill">${phaseText(ex.phase)}</span>
+              <span class="pill">level ${ex.difficulty}</span>
+            </div>
+          </div>
+          <button class="icon-btn" onclick="openEdit(${ex.id})" title="Add photo">□</button>
+          <button class="icon-btn" onclick="openEdit(${ex.id})" title="Edit">✎</button>
+          <button class="icon-btn" onclick="deleteExercise(${ex.id})" title="Delete">×</button>
+        </article>
+      `;
+    });
+  });
+
+  container.innerHTML = html;
+}
+
+function deleteExercise(id) {
+  if (!confirm('Delete this exercise?')) return;
+  exercises = exercises.filter(ex => ex.id !== id);
+  saveExercises();
+  todayWorkout = null;
+  checkTodayWorkout();
+  renderList();
+  renderToday();
+}
+
+function openEdit(id) {
+  const ex = exercises.find(item => item.id === id);
+  if (!ex) return;
+
+  document.getElementById('editId').value = ex.id;
+  document.getElementById('editName').value = ex.name;
+  document.getElementById('editDesc').value = ex.desc || '';
+  document.getElementById('editDuration').value = ex.duration;
+  editZone = ex.zone || 'floor';
+  editPhotoData = ex.photo || null;
+  setEditZone(editZone);
+
+  const preview = document.getElementById('editPhotoPreview');
+  const text = document.getElementById('editPhotoText');
+  if (ex.photo) {
+    preview.src = ex.photo;
+    preview.style.display = 'block';
+    text.style.display = 'none';
+  } else {
+    preview.style.display = 'none';
+    text.style.display = 'block';
+  }
+
+  document.getElementById('editOverlay').classList.add('show');
+}
+
+function setEditZone(zone) {
+  editZone = zone;
+  document.querySelectorAll('[data-edit-zone]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.editZone === zone);
+  });
+}
+
+function closeEdit() {
+  document.getElementById('editOverlay').classList.remove('show');
+  editingDuringWorkout = false;
+}
+
+function saveEdit() {
+  const id = Number(document.getElementById('editId').value);
+  const name = document.getElementById('editName').value.trim();
+  const desc = document.getElementById('editDesc').value.trim();
+  const duration = document.getElementById('editDuration').value;
+
+  if (!name) {
+    alert('Enter a name');
+    return;
+  }
+
+  exercises = exercises.map(ex => ex.id === id ? {
+    ...ex,
+    name,
+    desc,
+    duration,
+    zone: editZone,
+    photo: editPhotoData
+  } : ex);
+
+  saveExercises();
+
+  if (todayWorkout) {
+    todayWorkout = todayWorkout.map(ex => ex.id === id ? {
+      ...ex,
+      name,
+      desc,
+      duration,
+      zone: editZone,
+      photo: editPhotoData
+    } : ex);
+    storage.set('zaryadka_todayWorkout', todayWorkout);
+  }
+
+  closeEdit();
+  renderList();
+  renderToday();
+
+  if (editingDuringWorkout) showExercise(currentExIndex);
+}
+
+function openInWorkoutEdit() {
+  if (!todayWorkout || !todayWorkout[currentExIndex]) return;
+  if (timerRunning) timerAction();
+  editingDuringWorkout = true;
+  openEdit(todayWorkout[currentExIndex].id);
+}
+
+function renderHistory() {
+  const container = document.getElementById('historyContent');
+  if (!workoutHistory.length) {
+    container.innerHTML = '<div class="empty"><b>History is empty</b>Completed workouts will appear here.</div>';
+    return;
+  }
+
+  const totalExercises = workoutHistory.reduce((sum, entry) => sum + entry.exercises.length, 0);
+  let html = `
+    <div class="history-streak">
+      <strong>${workoutHistory.length}</strong>
+      <div class="sub">${workoutHistory.length} workouts total, ${totalExercises} exercises</div>
+    </div>
+  `;
+
+  workoutHistory.forEach(entry => {
+    const date = new Date(entry.date);
+    const dateText = date.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' });
+    const timeText = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    html += `
+      <article class="history-day">
+        <div class="history-head">
+          <span>${dateText}, ${timeText}</span>
+          <span class="pill">${entry.exercises.length} exercises</span>
+        </div>
+    `;
+    entry.exercises.forEach(ex => {
+      html += `
+        <div class="history-ex">
+          <span>${zoneIcon(ex.zone)}</span>
+          <span>${escapeHtml(ex.name)}</span>
+          <span class="sub">${durationLabel(ex.duration)}</span>
+        </div>
+      `;
+    });
+    html += '</article>';
+  });
+
+  container.innerHTML = html;
+}
+
+function renderSettings() {
+  document.getElementById('settingStartMin').value = Math.round(settingStartSec / 60);
+  document.getElementById('settingStep').value = settingStep;
+  const budget = budgetSeconds();
+  const mins = Math.floor(budget / 60);
+  const secs = budget % 60;
+  document.getElementById('currentDurLabel').textContent =
+    `Day ${progressionDay}: ${mins} min${secs ? ' ' + secs + ' sec' : ''}`;
+}
+
+function saveSettings() {
+  settingStartSec = (Number(document.getElementById('settingStartMin').value) || 10) * 60;
+  settingStep = Number(document.getElementById('settingStep').value) || 0;
+  localStorage.setItem('zaryadka_startSec', settingStartSec);
+  localStorage.setItem('zaryadka_stepSec', settingStep);
+  todayWorkout = generateWorkout();
+  storage.set('zaryadka_todayWorkout', todayWorkout);
+  renderToday();
+  renderSettings();
+  alert('Settings saved');
+}
+
+function resetProgress() {
+  if (!confirm('Reset progression to day 0?')) return;
+  progressionDay = 0;
+  localStorage.setItem('zaryadka_day', progressionDay);
+  todayWorkout = generateWorkout();
+  storage.set('zaryadka_todayWorkout', todayWorkout);
+  renderToday();
+  renderSettings();
+}
+
+function exportData() {
+  const data = {
+    exercises,
+    workoutHistory,
+    todayWorkout,
+    todayDateStr,
+    strengthIndex,
+    settingStartSec,
+    settingStep,
+    progressionDay,
+    libraryVersion,
+    workoutVersion,
+    exportedAt: new Date().toISOString()
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `workout-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!Array.isArray(data.exercises)) {
+        alert('Invalid file format');
+        return;
+      }
+      if (!confirm(`Restore ${data.exercises.length} exercises?`)) return;
+      exercises = data.exercises;
+      workoutHistory = Array.isArray(data.workoutHistory) ? data.workoutHistory : [];
+      todayWorkout = Array.isArray(data.todayWorkout) ? data.todayWorkout : null;
+      todayDateStr = typeof data.todayDateStr === 'string' ? data.todayDateStr : '';
+      strengthIndex = Number.isFinite(Number(data.strengthIndex)) ? Number(data.strengthIndex) : strengthIndex;
+      settingStartSec = Number.isFinite(Number(data.settingStartSec)) ? Number(data.settingStartSec) : settingStartSec;
+      settingStep = Number.isFinite(Number(data.settingStep)) ? Number(data.settingStep) : settingStep;
+      progressionDay = Number.isFinite(Number(data.progressionDay)) ? Number(data.progressionDay) : progressionDay;
+      saveExercises();
+      storage.set('zaryadka_history', workoutHistory);
+      storage.set('zaryadka_todayWorkout', todayWorkout);
+      localStorage.setItem('zaryadka_todayDate', todayDateStr);
+      localStorage.setItem('zaryadka_strengthIndex', strengthIndex);
+      localStorage.setItem('zaryadka_startSec', settingStartSec);
+      localStorage.setItem('zaryadka_stepSec', settingStep);
+      localStorage.setItem('zaryadka_day', progressionDay);
+      localStorage.setItem('zaryadka_libraryVersion', libraryVersion);
+      localStorage.setItem('zaryadka_workoutVersion', workoutVersion);
+      if (!todayWorkout) checkTodayWorkout();
+      renderToday();
+      renderList();
+      renderHistory();
+      renderSettings();
+      alert('Data restored');
+    } catch {
+      alert('Could not read the file');
+    }
+  };
+  reader.readAsText(file);
+}
+
+async function playBeep(freq) {
+  try {
+    if (!audioCtx || audioCtx.state === 'closed') {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.value = freq;
+    osc.type = 'sine';
+    const now = audioCtx.currentTime;
+    gain.gain.setValueAtTime(0.5, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    osc.start(now);
+    osc.stop(now + 0.25);
+  } catch {}
+}
+
+function testBeeps() {
+  playBeep(440);
+  setTimeout(() => playBeep(440), 700);
+  setTimeout(() => playBeep(880), 1400);
+}
+
+function saveExercises() {
+  storage.set('zaryadka_exercises', exercises);
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value).replaceAll('`', '&#096;');
+}
+
+init();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
