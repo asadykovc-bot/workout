@@ -737,8 +737,8 @@
       </div>
       <div class="settings-row">
         <div>
-          <strong>Day switching</strong>
-          <div class="sub">Use ‹ and › on Today to test progression days.</div>
+          <strong>Progression testing</strong>
+          <div class="sub">Use ‹ and › on Today to preview different completed-workout counts.</div>
         </div>
       </div>
       <button class="save-btn" id="saveSettingsBtn">Save Settings</button>
@@ -1004,9 +1004,7 @@ function checkTodayWorkout() {
   if (todayDateStr !== today || !todayWorkout) {
     todayWorkout = generateWorkout();
     todayDateStr = today;
-    progressionDay += 1;
     localStorage.setItem('zaryadka_todayDate', todayDateStr);
-    localStorage.setItem('zaryadka_day', progressionDay);
     storage.set('zaryadka_todayWorkout', todayWorkout);
   }
 }
@@ -1126,12 +1124,12 @@ function renderToday() {
       <div class="time">${plannedTime}</div>
     </div>
     <div class="day-controls">
-      <button class="day-btn" onclick="changeProgressionDay(-1)" title="Previous day">‹</button>
+      <button class="day-btn" onclick="changeProgressionDay(-1)" title="Preview fewer completed workouts">‹</button>
       <div class="day-info">
-        <div class="day-main">${mode.title} · day ${progressionDay}</div>
+        <div class="day-main">${mode.title} · completed ${progressionDay}</div>
         <div class="day-sub">${todayWorkout.length} exercises · target ${budgetTime}</div>
       </div>
-      <button class="day-btn" onclick="changeProgressionDay(1)" title="Next day">›</button>
+      <button class="day-btn" onclick="changeProgressionDay(1)" title="Preview more completed workouts">›</button>
     </div>
     <button class="main-btn" onclick="regenerateWorkout()">New Set</button>
   `;
@@ -1342,7 +1340,13 @@ function completeWorkout() {
     exercises: todayWorkout.map(ex => ({ name: ex.name, duration: ex.duration, zone: ex.zone }))
   });
   workoutHistory = workoutHistory.slice(0, 80);
+  progressionDay += 1;
   storage.set('zaryadka_history', workoutHistory);
+  localStorage.setItem('zaryadka_day', progressionDay);
+  todayWorkout = generateWorkout();
+  todayDateStr = new Date().toDateString();
+  localStorage.setItem('zaryadka_todayDate', todayDateStr);
+  storage.set('zaryadka_todayWorkout', todayWorkout);
   document.getElementById('todayContent').innerHTML = `
     <div class="empty">
       <b>Nice work!</b>
@@ -1595,7 +1599,7 @@ function renderSettings() {
   const mins = Math.floor(budget / 60);
   const secs = budget % 60;
   document.getElementById('currentDurLabel').textContent =
-    `Day ${progressionDay}: ${mins} min${secs ? ' ' + secs + ' sec' : ''}`;
+    `${progressionDay} completed workouts: ${mins} min${secs ? ' ' + secs + ' sec' : ''}`;
 }
 
 function saveSettings() {
@@ -1611,7 +1615,7 @@ function saveSettings() {
 }
 
 function resetProgress() {
-  if (!confirm('Reset progression to day 0?')) return;
+  if (!confirm('Reset progression to 0 completed workouts?')) return;
   progressionDay = 0;
   localStorage.setItem('zaryadka_day', progressionDay);
   todayWorkout = generateWorkout();
