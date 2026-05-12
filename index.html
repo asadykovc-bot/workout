@@ -902,8 +902,8 @@ let progressionDay = Number(localStorage.getItem('zaryadka_day') || 0);
 let lastWorkoutDate = localStorage.getItem('zaryadka_lastWorkoutDate') || '';
 let decayCheckedDate = localStorage.getItem('zaryadka_decayCheckedDate') || '';
 let soundTested = localStorage.getItem('zaryadka_soundTested') === 'true';
-const workoutVersion = 4;
-const libraryVersion = 4;
+const workoutVersion = 5;
+const libraryVersion = 5;
 
 let currentZone = 'bed';
 let currentPhotoData = null;
@@ -971,7 +971,22 @@ const defaults = [
   {id:44,name:'Mountain climber',desc:'Start in a plank. Drive knees forward one at a time while keeping shoulders steady.',duration:'60',zone:'strength',phase:'strength',difficulty:4,body:'cardio',diagram:'plank',photo:null},
   {id:45,name:'Plank shoulder taps',desc:'Start in a plank. Tap one shoulder at a time while keeping the hips as still as possible.',duration:'60',zone:'strength',phase:'strength',difficulty:4,body:'shoulders',diagram:'quad',photo:null},
   {id:46,name:'Squat pulses',desc:'Hold the lower part of a squat and pulse a small range. Keep knees tracking with toes.',duration:'60',zone:'strength',phase:'strength',difficulty:4,body:'legs',diagram:'squat',photo:null},
-  {id:47,name:'Single-leg calf raise',desc:'Stand near support. Rise on one foot and lower slowly. Switch sides halfway.',duration:'30+30',zone:'strength',phase:'strength',difficulty:4,body:'legs',diagram:'calfraise',photo:null}
+  {id:47,name:'Single-leg calf raise',desc:'Stand near support. Rise on one foot and lower slowly. Switch sides halfway.',duration:'30+30',zone:'strength',phase:'strength',difficulty:4,body:'legs',diagram:'calfraise',photo:null},
+  {id:48,name:'Crunch',desc:'Lie on your back with knees bent. Lift your shoulder blades slightly, ribs toward hips, then lower with control.',duration:'60',zone:'strength',phase:'strength',difficulty:3,body:'core',diagram:'supine',photo:null},
+  {id:49,name:'Reverse crunch',desc:'Lie on your back with knees bent. Curl the pelvis up slightly, bringing knees toward chest without swinging.',duration:'60',zone:'strength',phase:'strength',difficulty:3,body:'core',diagram:'deadbug',photo:null},
+  {id:50,name:'Bicycle crunch',desc:'Lie on your back. Rotate shoulder toward opposite knee while extending the other leg. Move slowly and switch sides.',duration:'60',zone:'strength',phase:'strength',difficulty:4,body:'core',diagram:'deadbug',photo:null},
+  {id:51,name:'Leg raises',desc:'Lie on your back and brace your abs. Lower and raise both legs only as far as your low back stays controlled.',duration:'60',zone:'strength',phase:'strength',difficulty:5,body:'core',diagram:'hamstring',photo:null},
+  {id:52,name:'V-sit tuck',desc:'Sit tall, lean back slightly, and bring knees in and out while keeping the chest lifted.',duration:'60',zone:'strength',phase:'strength',difficulty:5,body:'core',diagram:'deadbug',photo:null},
+  {id:53,name:'Decline push-up',desc:'Feet on a low bed or step, hands on the floor. Keep the body straight and perform controlled push-ups.',duration:'60',zone:'strength',phase:'strength',difficulty:6,body:'chest',diagram:'pushup',photo:null},
+  {id:54,name:'Pike push-up',desc:'Hips high, hands on the floor. Bend elbows and lower the head toward the floor, then press back up.',duration:'60',zone:'strength',phase:'strength',difficulty:6,body:'shoulders',diagram:'pushup',photo:null},
+  {id:55,name:'Diamond push-up',desc:'Hands close under the chest. Lower with control and press back up. Use knees if needed.',duration:'60',zone:'strength',phase:'strength',difficulty:6,body:'chest',diagram:'pushup',photo:null},
+  {id:56,name:'Jump squat',desc:'Squat down, then drive up into a small controlled jump. Land softly and reset before the next rep.',duration:'60',zone:'strength',phase:'strength',difficulty:6,body:'legs',diagram:'squat',photo:null},
+  {id:57,name:'Walking lunge',desc:'Step forward into a lunge, stand through the front foot, then continue alternating legs.',duration:'60',zone:'strength',phase:'strength',difficulty:5,body:'legs',diagram:'lunge',photo:null},
+  {id:58,name:'Push-up plus shoulder tap',desc:'Do one push-up, then tap each shoulder from plank position before the next rep.',duration:'60',zone:'strength',phase:'strength',difficulty:7,body:'chest',diagram:'pushup',photo:null},
+  {id:59,name:'Burpee without push-up',desc:'Squat down, step or hop feet back to plank, return to squat, and stand tall. Keep it controlled.',duration:'60',zone:'strength',phase:'strength',difficulty:7,body:'cardio',diagram:'stepjack',photo:null},
+  {id:60,name:'Plank to push-up',desc:'Move from forearm plank to high plank and back down, alternating the lead arm.',duration:'60',zone:'strength',phase:'strength',difficulty:7,body:'shoulders',diagram:'plank',photo:null},
+  {id:61,name:'Side plank reach-through',desc:'Hold a side plank and rotate the top arm under the body, then open back up. Switch sides halfway.',duration:'30+30',zone:'strength',phase:'strength',difficulty:6,body:'core',diagram:'sideplank',photo:null},
+  {id:62,name:'Hollow rock',desc:'Hold a hollow body shape and rock gently while keeping ribs down and low back controlled.',duration:'60',zone:'strength',phase:'strength',difficulty:7,body:'core',diagram:'deadbug',photo:null}
 ];
 
 function init() {
@@ -1126,17 +1141,39 @@ function dayMode() {
 }
 
 function trainingDifficultyCap() {
-  if (progressionDay >= 20) return 5;
-  if (progressionDay >= 11) return 4;
+  if (progressionDay >= 40) return 7;
+  if (progressionDay >= 28) return 6;
+  if (progressionDay >= 18) return 5;
+  if (progressionDay >= 10) return 4;
   if (progressionDay >= 4) return 3;
   return 2;
 }
 
 function minimumDifficultyForZone(zone) {
   if (zone !== 'strength') return 1;
-  if (progressionDay >= 20) return 3;
+  if (progressionDay >= 28) return 4;
+  if (progressionDay >= 10) return 3;
   if (progressionDay >= 4) return 2;
   return 1;
+}
+
+function bodyWeight(body) {
+  const weights = {
+    core: 1.4,
+    chest: 1.25,
+    legs: 1.25,
+    shoulders: 1.15,
+    cardio: 1.1,
+    hips: 0.95,
+    back: 0.7
+  };
+  return weights[body] || 1;
+}
+
+function weightedShuffle(list) {
+  return [...list].sort((a, b) =>
+    (Math.random() * bodyWeight(b.body)) - (Math.random() * bodyWeight(a.body))
+  );
 }
 
 function durationSeconds(duration) {
@@ -1164,7 +1201,7 @@ function checkTodayWorkout() {
 }
 
 function generateWorkout() {
-  const shuffle = list => [...list].sort(() => Math.random() - 0.5);
+  const shuffle = list => weightedShuffle(list);
   const budget = budgetSeconds();
   const mode = dayMode();
   const difficultyCap = Math.min(5, trainingDifficultyCap() + mode.difficultyBonus);
