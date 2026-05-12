@@ -902,8 +902,8 @@ let progressionDay = Number(localStorage.getItem('zaryadka_day') || 0);
 let lastWorkoutDate = localStorage.getItem('zaryadka_lastWorkoutDate') || '';
 let decayCheckedDate = localStorage.getItem('zaryadka_decayCheckedDate') || '';
 let soundTested = localStorage.getItem('zaryadka_soundTested') === 'true';
-const workoutVersion = 6;
-const libraryVersion = 6;
+const workoutVersion = 7;
+const libraryVersion = 7;
 
 let currentZone = 'bed';
 let currentPhotoData = null;
@@ -990,7 +990,8 @@ const defaults = [
 ];
 
 function init() {
-  if (!exercises.length || Number(localStorage.getItem('zaryadka_libraryVersion') || 0) !== libraryVersion) {
+  const storedLibraryVersion = Number(localStorage.getItem('zaryadka_libraryVersion') || 0);
+  if (!exercises.length || storedLibraryVersion !== libraryVersion || hasMissingDefaultExercises()) {
     exercises = mergeExerciseLibrary(defaults, exercises);
     saveExercises();
     todayWorkout = null;
@@ -1014,6 +1015,11 @@ function init() {
   renderHistory();
   renderSettings();
   if (!soundTested) showSoundCheck();
+}
+
+function hasMissingDefaultExercises() {
+  const exerciseIds = new Set(exercises.map(ex => ex.id));
+  return defaults.some(ex => !exerciseIds.has(ex.id));
 }
 
 function mergeExerciseLibrary(nextDefaults, current) {
