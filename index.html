@@ -41,13 +41,17 @@
     font: inherit;
   }
 
-  .header {
-    background: linear-gradient(135deg, #1a1d26, #12151e);
-    padding: calc(24px + env(safe-area-inset-top)) 20px 18px;
+  .app-top {
+    background: var(--bg);
     border-bottom: 1px solid #ffffff12;
     position: sticky;
     top: 0;
-    z-index: 20;
+    z-index: 100;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #1a1d26, #12151e);
+    padding: calc(24px + env(safe-area-inset-top)) 20px 18px;
   }
 
   .header h1 {
@@ -65,7 +69,7 @@
   .tabs {
     display: flex;
     gap: 6px;
-    padding: 14px 16px 0;
+    padding: 14px 16px;
   }
 
   .tab {
@@ -333,6 +337,9 @@
     color: var(--text);
     padding: 12px 14px;
     outline: 0;
+    font-size: 16px;
+    line-height: 1.4;
+    scroll-margin-bottom: 320px;
   }
 
   .textarea {
@@ -437,6 +444,12 @@
     place-items: center;
   }
 
+  .icon-btn.priority.active {
+    border-color: var(--accent);
+    color: #0f1117;
+    background: var(--accent);
+  }
+
   .empty {
     text-align: center;
     color: var(--muted);
@@ -517,7 +530,7 @@
     display: none;
     position: fixed;
     inset: 0;
-    z-index: 50;
+    z-index: 300;
     background: #0a0c12f2;
     backdrop-filter: blur(8px);
     padding: 24px;
@@ -619,7 +632,38 @@
   .modal {
     background: var(--card);
     border-radius: var(--radius);
-    padding: 20px;
+    padding: 20px 20px calc(220px + env(safe-area-inset-bottom));
+  }
+
+  .transition-box,
+  .sound-box {
+    max-width: 520px;
+    margin: 0 auto;
+    min-height: calc(100vh - 48px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .transition-title,
+  .sound-title {
+    font-size: 26px;
+    font-weight: 950;
+    margin-bottom: 10px;
+  }
+
+  .transition-text,
+  .sound-text {
+    color: var(--muted);
+    line-height: 1.5;
+    margin-bottom: 22px;
+  }
+
+  .wake-status {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 12px;
   }
 
   .hidden { display: none !important; }
@@ -636,18 +680,20 @@
 </style>
 </head>
 <body>
-  <header class="header">
-    <h1>Workout</h1>
-    <p id="todayDate"></p>
-  </header>
+  <div class="app-top">
+    <header class="header">
+      <h1>Workout</h1>
+      <p id="todayDate"></p>
+    </header>
 
-  <nav class="tabs">
-    <button class="tab active" data-screen="today">Today</button>
-    <button class="tab" data-screen="add">New</button>
-    <button class="tab" data-screen="list">Library</button>
-    <button class="tab" data-screen="history">History</button>
-    <button class="tab" data-screen="settings">Settings</button>
-  </nav>
+    <nav class="tabs">
+      <button class="tab active" data-screen="today">Today</button>
+      <button class="tab" data-screen="add">New</button>
+      <button class="tab" data-screen="list">Library</button>
+      <button class="tab" data-screen="history">History</button>
+      <button class="tab" data-screen="settings">Settings</button>
+    </nav>
+  </div>
 
   <main>
     <section class="screen active" id="screen-today">
@@ -737,8 +783,8 @@
       </div>
       <div class="settings-row">
         <div>
-          <strong>Progression testing</strong>
-          <div class="sub">Use ‹ and › on Today to preview different completed-workout counts.</div>
+          <strong>Training level testing</strong>
+          <div class="sub">Use ‹ and › on Today to preview different training levels.</div>
         </div>
       </div>
       <button class="save-btn" id="saveSettingsBtn">Save Settings</button>
@@ -765,6 +811,24 @@
       <button class="main-btn" id="timerMainBtn">Start</button>
       <button class="small-btn" id="skipBtn" style="margin-top:10px">Skip</button>
       <button class="ghost" id="testSoundBtn" style="margin-top:14px">Test Sound</button>
+      <div class="wake-status" id="wakeStatus"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="transitionOverlay">
+    <div class="transition-box">
+      <div class="transition-title" id="transitionTitle"></div>
+      <div class="transition-text" id="transitionText"></div>
+      <button class="main-btn" id="transitionBtn">Continue</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="soundOverlay">
+    <div class="sound-box">
+      <div class="sound-title">Sound Check</div>
+      <div class="sound-text">Test the timer sound once before your first workout. This helps mobile browsers allow beeps during the timer.</div>
+      <button class="main-btn" id="soundTestBtn">Test Sound</button>
+      <button class="outline-btn hidden" id="soundContinueBtn" style="margin-top:10px">Continue</button>
     </div>
   </div>
 
@@ -835,8 +899,11 @@ let strengthIndex = Number(localStorage.getItem('zaryadka_strengthIndex') || 0);
 let settingStartSec = Number(localStorage.getItem('zaryadka_startSec') || 600);
 let settingStep = Number(localStorage.getItem('zaryadka_stepSec') || 10);
 let progressionDay = Number(localStorage.getItem('zaryadka_day') || 0);
-const workoutVersion = 3;
-const libraryVersion = 3;
+let lastWorkoutDate = localStorage.getItem('zaryadka_lastWorkoutDate') || '';
+let decayCheckedDate = localStorage.getItem('zaryadka_decayCheckedDate') || '';
+let soundTested = localStorage.getItem('zaryadka_soundTested') === 'true';
+const workoutVersion = 4;
+const libraryVersion = 4;
 
 let currentZone = 'bed';
 let currentPhotoData = null;
@@ -851,6 +918,9 @@ let timerSecondsLeft = 0;
 let timerPhaseIndex = 0;
 let timerPhases = [];
 let audioCtx = null;
+let wakeLock = null;
+let pendingNextExerciseIndex = null;
+let soundContinueAction = null;
 
 const defaults = [
   {id:1,name:'Diaphragmatic breathing',desc:'Lie on your back with one hand on your belly. Inhale slowly through your nose and let the belly rise; make the exhale longer than the inhale.',duration:'60',zone:'bed',phase:'mobility',difficulty:1,body:'core',diagram:'breathing',photo:null},
@@ -890,16 +960,29 @@ const defaults = [
   {id:33,name:'Plank',desc:'Rest on forearms and toes. Keep the body straight and avoid holding your breath.',duration:'60',zone:'strength',phase:'strength',difficulty:3,body:'core',diagram:'plank',photo:null},
   {id:34,name:'Kneeling side plank',desc:'Support yourself on one forearm and knee. Lift the hips and keep a long side-body line. Switch sides.',duration:'30+30',zone:'strength',phase:'strength',difficulty:3,body:'core',diagram:'sideplank',photo:null},
   {id:35,name:'Superman light',desc:'Lie on your stomach. Lift the chest and arms a little with a long neck, then lower with control.',duration:'60',zone:'strength',phase:'strength',difficulty:2,body:'back',diagram:'superman',photo:null},
-  {id:36,name:'Calf raises',desc:'Stand near a wall or chair. Rise onto the balls of your feet and lower slowly.',duration:'60',zone:'strength',phase:'strength',difficulty:1,body:'legs',diagram:'calfraise',photo:null}
+  {id:36,name:'Calf raises',desc:'Stand near a wall or chair. Rise onto the balls of your feet and lower slowly.',duration:'60',zone:'strength',phase:'strength',difficulty:1,body:'legs',diagram:'calfraise',photo:null},
+  {id:37,name:'Incline push-up',desc:'Hands on a bed, desk, or sturdy surface. Keep the body straight, lower with control, and push back up.',duration:'60',zone:'strength',phase:'strength',difficulty:3,body:'chest',diagram:'wall-push',photo:null},
+  {id:38,name:'Full push-up',desc:'Hands under shoulders, body straight from head to heels. Lower with control and press back up without sagging.',duration:'60',zone:'strength',phase:'strength',difficulty:4,body:'chest',diagram:'pushup',photo:null},
+  {id:39,name:'Slow push-up',desc:'Use a full or knee push-up. Lower for three slow counts, pause briefly, then press back up.',duration:'60',zone:'strength',phase:'strength',difficulty:5,body:'chest',diagram:'pushup',photo:null},
+  {id:40,name:'Split squat',desc:'Stand in a staggered stance. Drop straight down with control and stand back up. Switch sides halfway.',duration:'30+30',zone:'strength',phase:'strength',difficulty:4,body:'legs',diagram:'lunge',photo:null},
+  {id:41,name:'Bulgarian split squat',desc:'Back foot on a bed or chair. Lower carefully and stand back up. Use a wall for balance if needed.',duration:'30+30',zone:'strength',phase:'strength',difficulty:5,body:'legs',diagram:'lunge',photo:null},
+  {id:42,name:'Single-leg glute bridge',desc:'Lie on your back with one foot planted and the other leg lifted. Raise and lower the hips with control. Switch sides.',duration:'30+30',zone:'strength',phase:'strength',difficulty:4,body:'hips',diagram:'bridge',photo:null},
+  {id:43,name:'Hollow hold',desc:'Lie on your back, brace your abs, and lift shoulders and legs slightly. Keep the low back controlled.',duration:'60',zone:'strength',phase:'strength',difficulty:4,body:'core',diagram:'deadbug',photo:null},
+  {id:44,name:'Mountain climber',desc:'Start in a plank. Drive knees forward one at a time while keeping shoulders steady.',duration:'60',zone:'strength',phase:'strength',difficulty:4,body:'cardio',diagram:'plank',photo:null},
+  {id:45,name:'Plank shoulder taps',desc:'Start in a plank. Tap one shoulder at a time while keeping the hips as still as possible.',duration:'60',zone:'strength',phase:'strength',difficulty:4,body:'shoulders',diagram:'quad',photo:null},
+  {id:46,name:'Squat pulses',desc:'Hold the lower part of a squat and pulse a small range. Keep knees tracking with toes.',duration:'60',zone:'strength',phase:'strength',difficulty:4,body:'legs',diagram:'squat',photo:null},
+  {id:47,name:'Single-leg calf raise',desc:'Stand near support. Rise on one foot and lower slowly. Switch sides halfway.',duration:'30+30',zone:'strength',phase:'strength',difficulty:4,body:'legs',diagram:'calfraise',photo:null}
 ];
 
 function init() {
   if (!exercises.length || Number(localStorage.getItem('zaryadka_libraryVersion') || 0) !== libraryVersion) {
-    exercises = defaults;
+    exercises = mergeExerciseLibrary(defaults, exercises);
     saveExercises();
     todayWorkout = null;
     localStorage.setItem('zaryadka_libraryVersion', libraryVersion);
   }
+
+  applyMissedWorkoutDecay();
 
   if (Number(localStorage.getItem('zaryadka_workoutVersion') || 0) !== workoutVersion) {
     todayWorkout = null;
@@ -915,6 +998,55 @@ function init() {
   renderList();
   renderHistory();
   renderSettings();
+  if (!soundTested) showSoundCheck();
+}
+
+function mergeExerciseLibrary(nextDefaults, current) {
+  const currentById = new Map((current || []).map(ex => [ex.id, ex]));
+  const mergedDefaults = nextDefaults.map(base => {
+    const existing = currentById.get(base.id);
+    if (!existing) return base;
+    return {
+      ...base,
+      name: existing.name || base.name,
+      desc: existing.desc || base.desc,
+      duration: existing.duration || base.duration,
+      zone: existing.zone || base.zone,
+      photo: existing.photo || base.photo,
+      priority: Boolean(existing.priority)
+    };
+  });
+  const defaultIds = new Set(nextDefaults.map(ex => ex.id));
+  const custom = (current || []).filter(ex => !defaultIds.has(ex.id));
+  return [...mergedDefaults, ...custom];
+}
+
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function applyMissedWorkoutDecay() {
+  const today = startOfDay(new Date()).toDateString();
+  if (decayCheckedDate === today) return;
+
+  const lastDate = lastWorkoutDate || (workoutHistory[0] && workoutHistory[0].date) || '';
+  if (lastDate) {
+    const daysSince = Math.floor((startOfDay(new Date()) - startOfDay(new Date(lastDate))) / 86400000);
+    let penalty = 0;
+    if (daysSince >= 7) penalty = 3;
+    else if (daysSince >= 4) penalty = 2;
+    else if (daysSince >= 2) penalty = 1;
+    if (penalty > 0) {
+      progressionDay = Math.max(0, progressionDay - penalty);
+      localStorage.setItem('zaryadka_day', progressionDay);
+      todayWorkout = null;
+    }
+  }
+
+  decayCheckedDate = today;
+  localStorage.setItem('zaryadka_decayCheckedDate', decayCheckedDate);
 }
 
 function bindEvents() {
@@ -942,8 +1074,16 @@ function bindEvents() {
   document.getElementById('cancelWorkoutBtn').addEventListener('click', cancelWorkout);
   document.getElementById('editWorkoutBtn').addEventListener('click', openInWorkoutEdit);
   document.getElementById('testSoundBtn').addEventListener('click', testBeeps);
+  document.getElementById('soundTestBtn').addEventListener('click', completeSoundCheck);
+  document.getElementById('soundContinueBtn').addEventListener('click', closeSoundCheck);
+  document.getElementById('transitionBtn').addEventListener('click', continueAfterTransition);
   document.getElementById('closeEditBtn').addEventListener('click', closeEdit);
   document.getElementById('saveEditBtn').addEventListener('click', saveEdit);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && document.getElementById('timerOverlay').classList.contains('show')) {
+      requestWakeLock();
+    }
+  });
 }
 
 function showScreen(name, button) {
@@ -985,6 +1125,20 @@ function dayMode() {
   return modes[progressionDay % modes.length];
 }
 
+function trainingDifficultyCap() {
+  if (progressionDay >= 20) return 5;
+  if (progressionDay >= 11) return 4;
+  if (progressionDay >= 4) return 3;
+  return 2;
+}
+
+function minimumDifficultyForZone(zone) {
+  if (zone !== 'strength') return 1;
+  if (progressionDay >= 20) return 3;
+  if (progressionDay >= 4) return 2;
+  return 1;
+}
+
 function durationSeconds(duration) {
   return duration === '30+30' ? 60 : Number(duration);
 }
@@ -1013,11 +1167,31 @@ function generateWorkout() {
   const shuffle = list => [...list].sort(() => Math.random() - 0.5);
   const budget = budgetSeconds();
   const mode = dayMode();
-  const difficultyCap = Math.min(3, 1 + Math.floor(progressionDay / 10) + mode.difficultyBonus);
+  const difficultyCap = Math.min(5, trainingDifficultyCap() + mode.difficultyBonus);
+  const priorityCap = Math.min(5, difficultyCap + 1);
   const strengthTarget = Math.min(4, mode.strength + Math.floor(progressionDay / 20));
   const picked = [];
   const usedBodies = new Set();
   let used = 0;
+
+  const addExercise = (ex, allowOverBudget = false) => {
+    const total = durationSeconds(ex.duration);
+    if (!allowOverBudget && used + total > budget) return false;
+    if (picked.some(item => item.id === ex.id)) return false;
+    picked.push(ex);
+    used += total;
+    usedBodies.add(ex.body);
+    return true;
+  };
+
+  const priorityPool = exercises
+    .filter(ex => ex.priority && ex.difficulty <= priorityCap)
+    .sort((a, b) => {
+      const zoneOrder = { bed: 0, floor: 1, strength: 2 };
+      const phaseOrder = { mobility: 0, stretch: 1, stability: 2, strength: 3 };
+      return zoneOrder[a.zone] - zoneOrder[b.zone] || phaseOrder[a.phase] - phaseOrder[b.phase] || a.difficulty - b.difficulty;
+    });
+  priorityPool.forEach(ex => addExercise(ex));
 
   const addFrom = (zone, phases, count, allowSameBody = false) => {
     phases.forEach(phase => {
@@ -1025,6 +1199,7 @@ function generateWorkout() {
       const pool = shuffle(exercises.filter(ex =>
         ex.zone === zone &&
         ex.phase === phase &&
+        ex.difficulty >= minimumDifficultyForZone(zone) &&
         ex.difficulty <= difficultyCap &&
         !picked.some(item => item.id === ex.id)
       ));
@@ -1033,9 +1208,7 @@ function generateWorkout() {
         const bodyRepeated = usedBodies.has(ex.body);
         if (used + total > budget) continue;
         if (!allowSameBody && bodyRepeated && pool.some(item => !usedBodies.has(item.body))) continue;
-        picked.push(ex);
-        used += total;
-        usedBodies.add(ex.body);
+        addExercise(ex);
         break;
       }
     });
@@ -1044,7 +1217,11 @@ function generateWorkout() {
   addFrom('bed', ['mobility', 'stretch', 'stability'], 1);
   addFrom('floor', ['mobility', 'stretch', 'stability'], 1);
 
-  const strengthPool = exercises.filter(ex => ex.zone === 'strength' && ex.difficulty <= difficultyCap);
+  const strengthPool = exercises.filter(ex =>
+    ex.zone === 'strength' &&
+    ex.difficulty >= minimumDifficultyForZone('strength') &&
+    ex.difficulty <= difficultyCap
+  );
   const orderedStrength = strengthPool.length
     ? [...strengthPool.slice(strengthIndex), ...strengthPool.slice(0, strengthIndex)]
     : [];
@@ -1055,9 +1232,7 @@ function generateWorkout() {
     if (usedBodies.has(ex.body) && orderedStrength.some(item => !usedBodies.has(item.body))) continue;
     const total = durationSeconds(ex.duration);
     if (used + total > budget) continue;
-    picked.push(ex);
-    used += total;
-    usedBodies.add(ex.body);
+    addExercise(ex);
     strengthPicked += 1;
   }
   strengthIndex = strengthPool.length ? (strengthIndex + Math.max(1, strengthPicked)) % strengthPool.length : 0;
@@ -1077,15 +1252,14 @@ function generateWorkout() {
       const pool = shuffle(exercises.filter(ex =>
         ex.zone === zone &&
         phases.includes(ex.phase) &&
+        ex.difficulty >= minimumDifficultyForZone(zone) &&
         ex.difficulty <= difficultyCap &&
         !picked.some(item => item.id === ex.id)
       ));
       const candidate = pool.find(ex => used + durationSeconds(ex.duration) <= budget && !usedBodies.has(ex.body))
         || pool.find(ex => used + durationSeconds(ex.duration) <= budget);
       if (candidate) {
-        picked.push(candidate);
-        used += durationSeconds(candidate.duration);
-        usedBodies.add(candidate.body);
+        addExercise(candidate);
         added = true;
       }
     }
@@ -1124,12 +1298,12 @@ function renderToday() {
       <div class="time">${plannedTime}</div>
     </div>
     <div class="day-controls">
-      <button class="day-btn" onclick="changeProgressionDay(-1)" title="Preview fewer completed workouts">‹</button>
+      <button class="day-btn" onclick="changeProgressionDay(-1)" title="Preview lower training level">‹</button>
       <div class="day-info">
-        <div class="day-main">${mode.title} · completed ${progressionDay}</div>
+        <div class="day-main">${mode.title} · level ${progressionDay}</div>
         <div class="day-sub">${todayWorkout.length} exercises · target ${budgetTime}</div>
       </div>
-      <button class="day-btn" onclick="changeProgressionDay(1)" title="Preview more completed workouts">›</button>
+      <button class="day-btn" onclick="changeProgressionDay(1)" title="Preview higher training level">›</button>
     </div>
     <button class="main-btn" onclick="regenerateWorkout()">New Set</button>
   `;
@@ -1242,9 +1416,60 @@ function changeProgressionDay(delta) {
   renderSettings();
 }
 
+function showSoundCheck(onContinue = null) {
+  soundContinueAction = onContinue;
+  document.getElementById('soundContinueBtn').classList.toggle('hidden', !soundTested);
+  document.getElementById('soundOverlay').classList.add('show');
+}
+
+function completeSoundCheck() {
+  testBeeps();
+  soundTested = true;
+  localStorage.setItem('zaryadka_soundTested', 'true');
+  document.getElementById('soundContinueBtn').classList.remove('hidden');
+}
+
+function closeSoundCheck() {
+  document.getElementById('soundOverlay').classList.remove('show');
+  const action = soundContinueAction;
+  soundContinueAction = null;
+  if (action) action();
+}
+
+async function requestWakeLock() {
+  const status = document.getElementById('wakeStatus');
+  if (!('wakeLock' in navigator)) {
+    if (status) status.textContent = 'Screen wake lock is not available in this browser.';
+    return;
+  }
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    if (status) status.textContent = 'Screen awake while workout is running.';
+    wakeLock.addEventListener('release', () => {
+      if (status) status.textContent = '';
+    });
+  } catch {
+    if (status) status.textContent = 'Screen wake lock could not be enabled.';
+  }
+}
+
+async function releaseWakeLock() {
+  if (wakeLock) {
+    try { await wakeLock.release(); } catch {}
+    wakeLock = null;
+  }
+  const status = document.getElementById('wakeStatus');
+  if (status) status.textContent = '';
+}
+
 function startWorkout() {
+  if (!soundTested) {
+    showSoundCheck(() => startWorkout());
+    return;
+  }
   currentExIndex = 0;
   doneIndexes = new Set();
+  requestWakeLock();
   showExercise(0);
 }
 
@@ -1315,14 +1540,50 @@ function nextPhase() {
   doneIndexes.add(currentExIndex);
   document.getElementById('timerOverlay').classList.remove('show');
   renderToday();
-  setTimeout(() => showExercise(currentExIndex + 1), 350);
+  setTimeout(() => advanceToExercise(currentExIndex + 1), 350);
 }
 
 function skipExercise() {
   clearInterval(timerInterval);
   timerRunning = false;
   document.getElementById('timerOverlay').classList.remove('show');
-  setTimeout(() => showExercise(currentExIndex + 1), 250);
+  setTimeout(() => advanceToExercise(currentExIndex + 1), 250);
+}
+
+function advanceToExercise(nextIndex) {
+  if (nextIndex >= todayWorkout.length) {
+    completeWorkout();
+    return;
+  }
+
+  const current = todayWorkout[currentExIndex];
+  const next = todayWorkout[nextIndex];
+  if (current && next && current.zone !== next.zone) {
+    showTransition(next.zone, nextIndex);
+    return;
+  }
+
+  showExercise(nextIndex);
+}
+
+function showTransition(nextZone, nextIndex) {
+  pendingNextExerciseIndex = nextIndex;
+  const title = nextZone === 'floor' ? 'Move to the floor' : 'Get ready for strength';
+  const text = nextZone === 'floor'
+    ? 'Take your mat if needed, get into position, then continue.'
+    : 'Stand up, clear some space, and get ready for the strength block.';
+  const button = nextZone === 'floor' ? "I'm on the floor" : 'Start strength block';
+  document.getElementById('transitionTitle').textContent = title;
+  document.getElementById('transitionText').textContent = text;
+  document.getElementById('transitionBtn').textContent = button;
+  document.getElementById('transitionOverlay').classList.add('show');
+}
+
+function continueAfterTransition() {
+  document.getElementById('transitionOverlay').classList.remove('show');
+  const nextIndex = pendingNextExerciseIndex;
+  pendingNextExerciseIndex = null;
+  if (typeof nextIndex === 'number') showExercise(nextIndex);
 }
 
 function cancelWorkout() {
@@ -1330,19 +1591,25 @@ function cancelWorkout() {
   timerRunning = false;
   doneIndexes = new Set();
   document.getElementById('timerOverlay').classList.remove('show');
+  document.getElementById('transitionOverlay').classList.remove('show');
+  releaseWakeLock();
   renderToday();
 }
 
 function completeWorkout() {
   document.getElementById('timerOverlay').classList.remove('show');
+  document.getElementById('transitionOverlay').classList.remove('show');
+  releaseWakeLock();
   workoutHistory.unshift({
     date: new Date().toISOString(),
     exercises: todayWorkout.map(ex => ({ name: ex.name, duration: ex.duration, zone: ex.zone }))
   });
   workoutHistory = workoutHistory.slice(0, 80);
   progressionDay += 1;
+  lastWorkoutDate = new Date().toISOString();
   storage.set('zaryadka_history', workoutHistory);
   localStorage.setItem('zaryadka_day', progressionDay);
+  localStorage.setItem('zaryadka_lastWorkoutDate', lastWorkoutDate);
   todayWorkout = generateWorkout();
   todayDateStr = new Date().toDateString();
   localStorage.setItem('zaryadka_todayDate', todayDateStr);
@@ -1444,7 +1711,7 @@ function renderList() {
               <span class="pill">level ${ex.difficulty}</span>
             </div>
           </div>
-          <button class="icon-btn" onclick="openEdit(${ex.id})" title="Add photo">□</button>
+          <button class="icon-btn priority ${ex.priority ? 'active' : ''}" onclick="togglePriority(${ex.id})" title="Priority">${ex.priority ? '★' : '☆'}</button>
           <button class="icon-btn" onclick="openEdit(${ex.id})" title="Edit">✎</button>
           <button class="icon-btn" onclick="deleteExercise(${ex.id})" title="Delete">×</button>
         </article>
@@ -1453,6 +1720,15 @@ function renderList() {
   });
 
   container.innerHTML = html;
+}
+
+function togglePriority(id) {
+  exercises = exercises.map(ex => ex.id === id ? { ...ex, priority: !ex.priority } : ex);
+  saveExercises();
+  todayWorkout = generateWorkout();
+  storage.set('zaryadka_todayWorkout', todayWorkout);
+  renderList();
+  renderToday();
 }
 
 function deleteExercise(id) {
@@ -1599,7 +1875,7 @@ function renderSettings() {
   const mins = Math.floor(budget / 60);
   const secs = budget % 60;
   document.getElementById('currentDurLabel').textContent =
-    `${progressionDay} completed workouts: ${mins} min${secs ? ' ' + secs + ' sec' : ''}`;
+    `Training level ${progressionDay}: ${mins} min${secs ? ' ' + secs + ' sec' : ''}`;
 }
 
 function saveSettings() {
@@ -1615,7 +1891,7 @@ function saveSettings() {
 }
 
 function resetProgress() {
-  if (!confirm('Reset progression to 0 completed workouts?')) return;
+  if (!confirm('Reset training level to 0?')) return;
   progressionDay = 0;
   localStorage.setItem('zaryadka_day', progressionDay);
   todayWorkout = generateWorkout();
@@ -1634,6 +1910,9 @@ function exportData() {
     settingStartSec,
     settingStep,
     progressionDay,
+    lastWorkoutDate,
+    decayCheckedDate,
+    soundTested,
     libraryVersion,
     workoutVersion,
     exportedAt: new Date().toISOString()
@@ -1668,6 +1947,9 @@ function importData(event) {
       settingStartSec = Number.isFinite(Number(data.settingStartSec)) ? Number(data.settingStartSec) : settingStartSec;
       settingStep = Number.isFinite(Number(data.settingStep)) ? Number(data.settingStep) : settingStep;
       progressionDay = Number.isFinite(Number(data.progressionDay)) ? Number(data.progressionDay) : progressionDay;
+      lastWorkoutDate = typeof data.lastWorkoutDate === 'string' ? data.lastWorkoutDate : lastWorkoutDate;
+      decayCheckedDate = typeof data.decayCheckedDate === 'string' ? data.decayCheckedDate : decayCheckedDate;
+      soundTested = typeof data.soundTested === 'boolean' ? data.soundTested : soundTested;
       saveExercises();
       storage.set('zaryadka_history', workoutHistory);
       storage.set('zaryadka_todayWorkout', todayWorkout);
@@ -1676,6 +1958,9 @@ function importData(event) {
       localStorage.setItem('zaryadka_startSec', settingStartSec);
       localStorage.setItem('zaryadka_stepSec', settingStep);
       localStorage.setItem('zaryadka_day', progressionDay);
+      localStorage.setItem('zaryadka_lastWorkoutDate', lastWorkoutDate);
+      localStorage.setItem('zaryadka_decayCheckedDate', decayCheckedDate);
+      localStorage.setItem('zaryadka_soundTested', soundTested ? 'true' : 'false');
       localStorage.setItem('zaryadka_libraryVersion', libraryVersion);
       localStorage.setItem('zaryadka_workoutVersion', workoutVersion);
       if (!todayWorkout) checkTodayWorkout();

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zaryadka-v1';
+const CACHE_NAME = 'workout-v4';
 const APP_SHELL = [
   './',
   './index.html',
