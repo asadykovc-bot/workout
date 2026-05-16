@@ -902,8 +902,10 @@ let progressionDay = Number(localStorage.getItem('zaryadka_day') || 0);
 let lastWorkoutDate = localStorage.getItem('zaryadka_lastWorkoutDate') || '';
 let decayCheckedDate = localStorage.getItem('zaryadka_decayCheckedDate') || '';
 let soundTested = localStorage.getItem('zaryadka_soundTested') === 'true';
-const workoutVersion = 8;
-const libraryVersion = 8;
+let deletedDefaultExerciseIds = storage.get('zaryadka_deletedDefaultExerciseIds', []);
+if (!Array.isArray(deletedDefaultExerciseIds)) deletedDefaultExerciseIds = [];
+const workoutVersion = 9;
+const libraryVersion = 9;
 
 let currentZone = 'bed';
 let currentPhotoData = null;
@@ -1019,12 +1021,14 @@ function init() {
 
 function hasMissingDefaultExercises() {
   const exerciseIds = new Set(exercises.map(ex => ex.id));
-  return defaults.some(ex => !exerciseIds.has(ex.id));
+  const deletedIds = new Set(deletedDefaultExerciseIds);
+  return defaults.some(ex => !deletedIds.has(ex.id) && !exerciseIds.has(ex.id));
 }
 
 function mergeExerciseLibrary(nextDefaults, current) {
   const currentById = new Map((current || []).map(ex => [ex.id, ex]));
-  const mergedDefaults = nextDefaults.map(base => {
+  const deletedIds = new Set(deletedDefaultExerciseIds);
+  const mergedDefaults = nextDefaults.filter(base => !deletedIds.has(base.id)).map(base => {
     const existing = currentById.get(base.id);
     if (!existing) return base;
     return {
@@ -1044,10 +1048,12 @@ function mergeExerciseLibrary(nextDefaults, current) {
 
 function mergeImportedExercises(imported) {
   const defaultIds = new Set(defaults.map(ex => ex.id));
+  const deletedIds = new Set(deletedDefaultExerciseIds);
   const currentById = new Map(mergeExerciseLibrary(defaults, exercises).map(ex => [ex.id, ex]));
 
   imported.forEach(item => {
     if (!item || typeof item !== 'object' || item.id === undefined || item.id === null) return;
+    if (defaultIds.has(item.id) && deletedIds.has(item.id)) return;
     const existing = currentById.get(item.id);
     if (existing) {
       if (defaultIds.has(item.id)) {
@@ -1088,9 +1094,14 @@ function mergeImportedExercises(imported) {
   });
 
   return [
-    ...defaults.map(ex => currentById.get(ex.id) || ex),
+    ...defaults.filter(ex => !deletedIds.has(ex.id)).map(ex => currentById.get(ex.id) || ex),
     ...Array.from(currentById.values()).filter(ex => !defaultIds.has(ex.id))
   ];
+}
+
+function saveDeletedDefaultExercises() {
+  deletedDefaultExerciseIds = [...new Set(deletedDefaultExerciseIds.map(Number).filter(Number.isFinite))];
+  storage.set('zaryadka_deletedDefaultExerciseIds', deletedDefaultExerciseIds);
 }
 
 function startOfDay(date) {
@@ -1827,6 +1838,10 @@ function togglePriority(id) {
 
 function deleteExercise(id) {
   if (!confirm('Delete this exercise?')) return;
+  if (defaults.some(ex => ex.id === id)) {
+    deletedDefaultExerciseIds = [...new Set([...deletedDefaultExerciseIds, id])];
+    saveDeletedDefaultExercises();
+  }
   exercises = exercises.filter(ex => ex.id !== id);
   saveExercises();
   todayWorkout = null;
@@ -2007,6 +2022,7 @@ function exportData() {
     lastWorkoutDate,
     decayCheckedDate,
     soundTested,
+    deletedDefaultExerciseIds,
     libraryVersion,
     workoutVersion,
     exportedAt: new Date().toISOString()
@@ -2033,6 +2049,14 @@ function importData(event) {
         return;
       }
       if (!confirm(`Import ${data.exercises.length} exercises and merge them with the current library?`)) return;
+      if (Array.isArray(data.deletedDefaultExerciseIds)) {
+        deletedDefaultExerciseIds = [
+          ...new Set([
+            ...deletedDefaultExerciseIds,
+            ...data.deletedDefaultExerciseIds.map(Number).filter(Number.isFinite)
+          ])
+        ];
+      }
       exercises = mergeImportedExercises(data.exercises);
       workoutHistory = Array.isArray(data.workoutHistory) ? data.workoutHistory : [];
       todayWorkout = null;
@@ -2045,6 +2069,7 @@ function importData(event) {
       decayCheckedDate = typeof data.decayCheckedDate === 'string' ? data.decayCheckedDate : decayCheckedDate;
       soundTested = typeof data.soundTested === 'boolean' ? data.soundTested : soundTested;
       saveExercises();
+      saveDeletedDefaultExercises();
       storage.set('zaryadka_history', workoutHistory);
       storage.set('zaryadka_todayWorkout', todayWorkout);
       localStorage.setItem('zaryadka_todayDate', todayDateStr);
