@@ -904,7 +904,7 @@ let decayCheckedDate = localStorage.getItem('zaryadka_decayCheckedDate') || '';
 let soundTested = localStorage.getItem('zaryadka_soundTested') === 'true';
 let deletedDefaultExerciseIds = storage.get('zaryadka_deletedDefaultExerciseIds', []);
 if (!Array.isArray(deletedDefaultExerciseIds)) deletedDefaultExerciseIds = [];
-const workoutVersion = 9;
+const workoutVersion = 10;
 const libraryVersion = 9;
 
 let currentZone = 'bed';
@@ -1238,10 +1238,38 @@ function bodyWeight(body) {
   return weights[body] || 1;
 }
 
-function weightedShuffle(list) {
-  return [...list].sort((a, b) =>
-    (Math.random() * bodyWeight(b.body)) - (Math.random() * bodyWeight(a.body))
+function recentExerciseCounts(limit = 4) {
+  const counts = new Map();
+  workoutHistory.slice(0, limit).forEach((entry, index) => {
+    const weight = limit - index;
+    (entry.exercises || []).forEach(ex => {
+      if (ex.id !== undefined && ex.id !== null) {
+        counts.set(`id:${ex.id}`, (counts.get(`id:${ex.id}`) || 0) + weight);
+      }
+      if (ex.name) {
+        counts.set(`name:${ex.name}`, (counts.get(`name:${ex.name}`) || 0) + weight);
+      }
+    });
+  });
+  return counts;
+}
+
+function recentCountFor(ex, counts) {
+  return Math.max(
+    counts.get(`id:${ex.id}`) || 0,
+    counts.get(`name:${ex.name}`) || 0
   );
+}
+
+function weightedShuffle(list, counts = new Map()) {
+  return [...list]
+    .map((ex, index) => {
+      const recentPenalty = 1 + recentCountFor(ex, counts) * 2.5;
+      const effectiveWeight = Math.max(0.1, bodyWeight(ex.body) / recentPenalty);
+      return { ex, index, key: Math.random() ** (1 / effectiveWeight) };
+    })
+    .sort((a, b) => b.key - a.key || a.index - b.index)
+    .map(item => item.ex);
 }
 
 function durationSeconds(duration) {
@@ -1269,14 +1297,15 @@ function checkTodayWorkout() {
 }
 
 function generateWorkout() {
-  const shuffle = list => weightedShuffle(list);
+  const recentCounts = recentExerciseCounts();
+  const shuffle = list => weightedShuffle(list, recentCounts);
   const budget = budgetSeconds();
   const mode = dayMode();
   const difficultyCap = Math.min(7, trainingDifficultyCap() + mode.difficultyBonus);
   const priorityCap = Math.min(7, difficultyCap + 1);
   const strengthTarget = Math.min(4, mode.strength + Math.floor(progressionDay / 20));
   const picked = [];
-  const usedBodies = new Set();
+  const usedBodiesByZone = { bed: new Set(), floor: new Set(), strength: new Set() };
   let used = 0;
 
   const addExercise = (ex, allowOverBudget = false) => {
@@ -1285,7 +1314,7 @@ function generateWorkout() {
     if (picked.some(item => item.id === ex.id)) return false;
     picked.push(ex);
     used += total;
-    usedBodies.add(ex.body);
+    if (usedBodiesByZone[ex.zone]) usedBodiesByZone[ex.zone].add(ex.body);
     return true;
   };
 
@@ -1310,9 +1339,10 @@ function generateWorkout() {
       ));
       for (const ex of pool) {
         const total = durationSeconds(ex.duration);
-        const bodyRepeated = usedBodies.has(ex.body);
+        const zoneBodies = usedBodiesByZone[zone] || new Set();
+        const bodyRepeated = zoneBodies.has(ex.body);
         if (used + total > budget) continue;
-        if (!allowSameBody && bodyRepeated && pool.some(item => !usedBodies.has(item.body))) continue;
+        if (!allowSameBody && bodyRepeated && pool.some(item => !zoneBodies.has(item.body))) continue;
         addExercise(ex);
         break;
       }
@@ -1329,12 +1359,15 @@ function generateWorkout() {
   );
   const orderedStrength = strengthPool.length
     ? [...strengthPool.slice(strengthIndex), ...strengthPool.slice(0, strengthIndex)]
+      .map((ex, index) => ({ ex, index }))
+      .sort((a, b) => recentCountFor(a.ex, recentCounts) - recentCountFor(b.ex, recentCounts) || a.index - b.index)
+      .map(item => item.ex)
     : [];
   let strengthPicked = 0;
   for (const ex of orderedStrength) {
     if (strengthPicked >= strengthTarget) break;
     if (picked.some(item => item.id === ex.id)) continue;
-    if (usedBodies.has(ex.body) && orderedStrength.some(item => !usedBodies.has(item.body))) continue;
+    if (usedBodiesByZone.strength.has(ex.body) && orderedStrength.some(item => !usedBodiesByZone.strength.has(item.body))) continue;
     const total = durationSeconds(ex.duration);
     if (used + total > budget) continue;
     addExercise(ex);
@@ -1345,7 +1378,7 @@ function generateWorkout() {
 
   const fillOrder = [
     ['bed', ['mobility', 'stretch', 'stability']],
-    ['floor', ['mobility', 'stretch', 'stability']],
+    ['floor', ['mobility', 'stretch', 'stability', 'strength']],
     ['strength', ['strength']]
   ];
 
@@ -1361,7 +1394,9 @@ function generateWorkout() {
         ex.difficulty <= difficultyCap &&
         !picked.some(item => item.id === ex.id)
       ));
-      const candidate = pool.find(ex => used + durationSeconds(ex.duration) <= budget && !usedBodies.has(ex.body))
+      const zoneBodies = usedBodiesByZone[zone] || new Set();
+      const candidate = pool.find(ex => used + durationSeconds(ex.duration) <= budget && !zoneBodies.has(ex.body) && recentCountFor(ex, recentCounts) === 0)
+        || pool.find(ex => used + durationSeconds(ex.duration) <= budget && !zoneBodies.has(ex.body))
         || pool.find(ex => used + durationSeconds(ex.duration) <= budget);
       if (candidate) {
         addExercise(candidate);
@@ -1707,7 +1742,7 @@ function completeWorkout() {
   releaseWakeLock();
   workoutHistory.unshift({
     date: new Date().toISOString(),
-    exercises: todayWorkout.map(ex => ({ name: ex.name, duration: ex.duration, zone: ex.zone }))
+    exercises: todayWorkout.map(ex => ({ id: ex.id, name: ex.name, duration: ex.duration, zone: ex.zone }))
   });
   workoutHistory = workoutHistory.slice(0, 80);
   progressionDay += 1;
