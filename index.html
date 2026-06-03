@@ -906,8 +906,10 @@ let decayCheckedDate = localStorage.getItem('zaryadka_decayCheckedDate') || '';
 let soundTested = localStorage.getItem('zaryadka_soundTested') === 'true';
 let deletedDefaultExerciseIds = storage.get('zaryadka_deletedDefaultExerciseIds', []);
 if (!Array.isArray(deletedDefaultExerciseIds)) deletedDefaultExerciseIds = [];
-const workoutVersion = 12;
+const workoutVersion = 13;
 const libraryVersion = 9;
+const PHOTO_MAX_SIZE = 720;
+const PHOTO_QUALITY = 0.78;
 
 let currentZone = 'bed';
 let currentPhotoData = null;
@@ -925,6 +927,51 @@ let audioCtx = null;
 let wakeLock = null;
 let pendingNextExerciseIndex = null;
 let soundContinueAction = null;
+
+function isImageDataUrl(value) {
+  return typeof value === 'string' && value.startsWith('data:image/');
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+async function compressImageDataUrl(dataUrl, maxSize = PHOTO_MAX_SIZE, quality = PHOTO_QUALITY) {
+  if (!isImageDataUrl(dataUrl)) return dataUrl;
+  const img = await loadImage(dataUrl);
+  const sourceWidth = img.naturalWidth || img.width;
+  const sourceHeight = img.naturalHeight || img.height;
+  const scale = Math.min(1, maxSize / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, width, height);
+  return canvas.toDataURL('image/jpeg', quality);
+}
+
+async function compressExercisePhotos(list) {
+  const result = [];
+  for (const ex of list) {
+    if (!ex || !ex.photo) {
+      result.push(ex);
+      continue;
+    }
+    try {
+      result.push({ ...ex, photo: await compressImageDataUrl(ex.photo) });
+    } catch {
+      result.push(ex);
+    }
+  }
+  return result;
+}
 
 const defaults = [
   {id:1,name:'Diaphragmatic breathing',desc:'Lie on your back with one hand on your belly. Inhale slowly through your nose and let the belly rise; make the exhale longer than the inhale.',duration:'60',zone:'bed',phase:'mobility',difficulty:1,body:'core',diagram:'breathing',photo:null},
@@ -1824,17 +1871,22 @@ function handlePhoto(event, previewId) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = () => {
-    const data = reader.result;
-    const preview = document.getElementById(previewId);
-    preview.src = data;
-    preview.style.display = 'block';
-    if (previewId === 'photoPreview') currentPhotoData = data;
-    if (previewId === 'editPhotoPreview') {
-      editPhotoData = data;
-      document.getElementById('editPhotoText').style.display = 'none';
+  reader.onload = async () => {
+    try {
+      const data = await compressImageDataUrl(reader.result);
+      const preview = document.getElementById(previewId);
+      preview.src = data;
+      preview.style.display = 'block';
+      if (previewId === 'photoPreview') currentPhotoData = data;
+      if (previewId === 'editPhotoPreview') {
+        editPhotoData = data;
+        document.getElementById('editPhotoText').style.display = 'none';
+      }
+    } catch {
+      alert('Could not process this image');
     }
   };
+  reader.onerror = () => alert('Could not read this image');
   reader.readAsDataURL(file);
 }
 
@@ -2124,14 +2176,27 @@ function importData(event) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
+    let data;
     try {
-      const data = JSON.parse(reader.result);
-      if (!Array.isArray(data.exercises)) {
-        alert('Invalid file format');
-        return;
-      }
-      if (!confirm(`Import ${data.exercises.length} exercises and merge them with the current library?`)) return;
+      data = JSON.parse(reader.result);
+    } catch {
+      alert('Could not read the file');
+      return;
+    }
+
+    if (!Array.isArray(data.exercises)) {
+      alert('Invalid file format');
+      return;
+    }
+
+    if (!confirm(`Import ${data.exercises.length} exercises and merge them with the current library?`)) {
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      const importedExercises = await compressExercisePhotos(data.exercises);
       if (Array.isArray(data.deletedDefaultExerciseIds)) {
         deletedDefaultExerciseIds = [
           ...new Set([
@@ -2140,7 +2205,7 @@ function importData(event) {
           ])
         ];
       }
-      exercises = mergeImportedExercises(data.exercises);
+      exercises = mergeImportedExercises(importedExercises);
       workoutHistory = Array.isArray(data.workoutHistory) ? data.workoutHistory : [];
       generatedWorkoutHistory = Array.isArray(data.generatedWorkoutHistory) ? data.generatedWorkoutHistory : [];
       todayWorkout = null;
@@ -2173,10 +2238,14 @@ function importData(event) {
       renderHistory();
       renderSettings();
       alert('Data imported');
-    } catch {
-      alert('Could not read the file');
+    } catch (error) {
+      console.error(error);
+      alert('Could not save imported data. The backup is probably too large for this browser storage. Try again after removing some photos, or import a smaller backup.');
+    } finally {
+      event.target.value = '';
     }
   };
+  reader.onerror = () => alert('Could not read the file');
   reader.readAsText(file);
 }
 
