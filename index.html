@@ -895,6 +895,8 @@ let exercises = storage.get('zaryadka_exercises', []);
 let todayWorkout = storage.get('zaryadka_todayWorkout', null);
 let todayDateStr = localStorage.getItem('zaryadka_todayDate') || '';
 let workoutHistory = storage.get('zaryadka_history', []);
+let generatedWorkoutHistory = storage.get('zaryadka_generatedWorkouts', []);
+if (!Array.isArray(generatedWorkoutHistory)) generatedWorkoutHistory = [];
 let strengthIndex = Number(localStorage.getItem('zaryadka_strengthIndex') || 0);
 let settingStartSec = Number(localStorage.getItem('zaryadka_startSec') || 600);
 let settingStep = Number(localStorage.getItem('zaryadka_stepSec') || 10);
@@ -904,7 +906,7 @@ let decayCheckedDate = localStorage.getItem('zaryadka_decayCheckedDate') || '';
 let soundTested = localStorage.getItem('zaryadka_soundTested') === 'true';
 let deletedDefaultExerciseIds = storage.get('zaryadka_deletedDefaultExerciseIds', []);
 if (!Array.isArray(deletedDefaultExerciseIds)) deletedDefaultExerciseIds = [];
-const workoutVersion = 10;
+const workoutVersion = 12;
 const libraryVersion = 9;
 
 let currentZone = 'bed';
@@ -1016,7 +1018,7 @@ function init() {
   renderList();
   renderHistory();
   renderSettings();
-  if (!soundTested) showSoundCheck();
+  showSoundCheck();
 }
 
 function hasMissingDefaultExercises() {
@@ -1240,7 +1242,11 @@ function bodyWeight(body) {
 
 function recentExerciseCounts(limit = 4) {
   const counts = new Map();
-  workoutHistory.slice(0, limit).forEach((entry, index) => {
+  const entries = [
+    ...generatedWorkoutHistory.map(exercises => ({ exercises })),
+    ...workoutHistory
+  ].slice(0, limit);
+  entries.forEach((entry, index) => {
     const weight = limit - index;
     (entry.exercises || []).forEach(ex => {
       if (ex.id !== undefined && ex.id !== null) {
@@ -1252,6 +1258,30 @@ function recentExerciseCounts(limit = 4) {
     });
   });
   return counts;
+}
+
+function rememberGeneratedWorkout(workout) {
+  const signature = workout.map(ex => ex.id ?? ex.name).join('|');
+  const previousSignature = generatedWorkoutHistory[0]
+    ? generatedWorkoutHistory[0].map(ex => ex.id ?? ex.name).join('|')
+    : '';
+  if (signature !== previousSignature) {
+    generatedWorkoutHistory.unshift(workout.map(ex => ({
+      id: ex.id,
+      name: ex.name,
+      duration: ex.duration,
+      zone: ex.zone
+    })));
+    generatedWorkoutHistory = generatedWorkoutHistory.slice(0, 6);
+    storage.set('zaryadka_generatedWorkouts', generatedWorkoutHistory);
+  }
+}
+
+function createWorkout(options = {}) {
+  const shouldRemember = options.remember !== false;
+  const workout = generateWorkout();
+  if (shouldRemember) rememberGeneratedWorkout(workout);
+  return workout;
 }
 
 function recentCountFor(ex, counts) {
@@ -1289,7 +1319,7 @@ function budgetSeconds() {
 function checkTodayWorkout() {
   const today = new Date().toDateString();
   if (todayDateStr !== today || !todayWorkout) {
-    todayWorkout = generateWorkout();
+    todayWorkout = createWorkout();
     todayDateStr = today;
     localStorage.setItem('zaryadka_todayDate', todayDateStr);
     storage.set('zaryadka_todayWorkout', todayWorkout);
@@ -1300,6 +1330,7 @@ function generateWorkout() {
   const recentCounts = recentExerciseCounts();
   const shuffle = list => weightedShuffle(list, recentCounts);
   const budget = budgetSeconds();
+  const targetExerciseCount = Math.max(1, Math.floor(budget / 60));
   const mode = dayMode();
   const difficultyCap = Math.min(7, trainingDifficultyCap() + mode.difficultyBonus);
   const priorityCap = Math.min(7, difficultyCap + 1);
@@ -1318,25 +1349,27 @@ function generateWorkout() {
     return true;
   };
 
-  const priorityPool = exercises
-    .filter(ex => ex.priority && ex.difficulty <= priorityCap)
-    .sort((a, b) => {
-      const zoneOrder = { bed: 0, floor: 1, strength: 2 };
-      const phaseOrder = { mobility: 0, stretch: 1, stability: 2, strength: 3 };
-      return zoneOrder[a.zone] - zoneOrder[b.zone] || phaseOrder[a.phase] - phaseOrder[b.phase] || a.difficulty - b.difficulty;
-    });
-  priorityPool.forEach(ex => addExercise(ex));
+  const available = (zone, phases, cap = difficultyCap) => exercises.filter(ex =>
+    ex.zone === zone &&
+    phases.includes(ex.phase) &&
+    ex.difficulty >= minimumDifficultyForZone(zone) &&
+    ex.difficulty <= cap &&
+    !picked.some(item => item.id === ex.id)
+  );
 
-  const addFrom = (zone, phases, count, allowSameBody = false) => {
+  const priorityPool = exercises
+    .filter(ex => ex.priority && ex.difficulty <= priorityCap && recentCountFor(ex, recentCounts) === 0);
+  const priorityLimit = Math.min(2, Math.max(1, Math.floor(targetExerciseCount / 5)));
+  shuffle(priorityPool).slice(0, priorityLimit).forEach(ex => addExercise(ex));
+
+  const addFrom = (zone, phases, count, allowSameBody = false, avoidRecent = true) => {
     phases.forEach(phase => {
       if (picked.filter(ex => ex.zone === zone && ex.phase === phase).length >= count) return;
-      const pool = shuffle(exercises.filter(ex =>
-        ex.zone === zone &&
-        ex.phase === phase &&
-        ex.difficulty >= minimumDifficultyForZone(zone) &&
-        ex.difficulty <= difficultyCap &&
-        !picked.some(item => item.id === ex.id)
-      ));
+      let pool = available(zone, [phase]);
+      if (avoidRecent && pool.some(ex => recentCountFor(ex, recentCounts) === 0)) {
+        pool = pool.filter(ex => recentCountFor(ex, recentCounts) === 0);
+      }
+      pool = shuffle(pool);
       for (const ex of pool) {
         const total = durationSeconds(ex.duration);
         const zoneBodies = usedBodiesByZone[zone] || new Set();
@@ -1360,7 +1393,11 @@ function generateWorkout() {
   const orderedStrength = strengthPool.length
     ? [...strengthPool.slice(strengthIndex), ...strengthPool.slice(0, strengthIndex)]
       .map((ex, index) => ({ ex, index }))
-      .sort((a, b) => recentCountFor(a.ex, recentCounts) - recentCountFor(b.ex, recentCounts) || a.index - b.index)
+      .sort((a, b) => {
+        const recentDelta = recentCountFor(a.ex, recentCounts) - recentCountFor(b.ex, recentCounts);
+        const priorityDelta = Number(Boolean(b.ex.priority)) - Number(Boolean(a.ex.priority));
+        return recentDelta || priorityDelta || a.index - b.index;
+      })
       .map(item => item.ex)
     : [];
   let strengthPicked = 0;
@@ -1383,17 +1420,12 @@ function generateWorkout() {
   ];
 
   let added = true;
-  while (added) {
+  while (added && picked.length < targetExerciseCount) {
     added = false;
     for (const [zone, phases] of fillOrder) {
+      if (picked.length >= targetExerciseCount) break;
       if (zone === 'strength' && picked.filter(ex => ex.zone === 'strength').length >= strengthTarget) continue;
-      const pool = shuffle(exercises.filter(ex =>
-        ex.zone === zone &&
-        phases.includes(ex.phase) &&
-        ex.difficulty >= minimumDifficultyForZone(zone) &&
-        ex.difficulty <= difficultyCap &&
-        !picked.some(item => item.id === ex.id)
-      ));
+      const pool = shuffle(available(zone, phases));
       const zoneBodies = usedBodiesByZone[zone] || new Set();
       const candidate = pool.find(ex => used + durationSeconds(ex.duration) <= budget && !zoneBodies.has(ex.body) && recentCountFor(ex, recentCounts) === 0)
         || pool.find(ex => used + durationSeconds(ex.duration) <= budget && !zoneBodies.has(ex.body))
@@ -1403,6 +1435,17 @@ function generateWorkout() {
         added = true;
       }
     }
+  }
+
+  const fallbackPool = shuffle([
+    ...available('bed', ['mobility', 'stretch', 'stability']),
+    ...available('floor', ['mobility', 'stretch', 'stability', 'strength']),
+    ...available('strength', ['strength'])
+  ]);
+  for (const ex of fallbackPool) {
+    if (picked.length >= targetExerciseCount) break;
+    if (used + durationSeconds(ex.duration) > budget) continue;
+    addExercise(ex);
   }
 
   const zoneOrder = { bed: 0, floor: 1, strength: 2 };
@@ -1540,7 +1583,7 @@ function exerciseArt(ex) {
 }
 
 function regenerateWorkout() {
-  todayWorkout = generateWorkout();
+  todayWorkout = createWorkout();
   doneIndexes = new Set();
   storage.set('zaryadka_todayWorkout', todayWorkout);
   renderToday();
@@ -1549,11 +1592,15 @@ function regenerateWorkout() {
 function changeProgressionDay(delta) {
   progressionDay = Math.max(0, progressionDay + delta);
   localStorage.setItem('zaryadka_day', progressionDay);
-  todayWorkout = generateWorkout();
+  todayWorkout = createWorkout({ remember: false });
+  todayDateStr = new Date().toDateString();
   doneIndexes = new Set();
+  localStorage.setItem('zaryadka_todayDate', todayDateStr);
   storage.set('zaryadka_todayWorkout', todayWorkout);
-  renderToday();
-  renderSettings();
+  requestAnimationFrame(() => {
+    renderToday();
+    renderSettings();
+  });
 }
 
 function showSoundCheck(onContinue = null) {
@@ -1750,7 +1797,7 @@ function completeWorkout() {
   storage.set('zaryadka_history', workoutHistory);
   localStorage.setItem('zaryadka_day', progressionDay);
   localStorage.setItem('zaryadka_lastWorkoutDate', lastWorkoutDate);
-  todayWorkout = generateWorkout();
+  todayWorkout = createWorkout();
   todayDateStr = new Date().toDateString();
   localStorage.setItem('zaryadka_todayDate', todayDateStr);
   storage.set('zaryadka_todayWorkout', todayWorkout);
@@ -1865,7 +1912,7 @@ function renderList() {
 function togglePriority(id) {
   exercises = exercises.map(ex => ex.id === id ? { ...ex, priority: !ex.priority } : ex);
   saveExercises();
-  todayWorkout = generateWorkout();
+  todayWorkout = createWorkout();
   storage.set('zaryadka_todayWorkout', todayWorkout);
   renderList();
   renderToday();
@@ -2027,7 +2074,7 @@ function saveSettings() {
   settingStep = Number(document.getElementById('settingStep').value) || 0;
   localStorage.setItem('zaryadka_startSec', settingStartSec);
   localStorage.setItem('zaryadka_stepSec', settingStep);
-  todayWorkout = generateWorkout();
+  todayWorkout = createWorkout();
   storage.set('zaryadka_todayWorkout', todayWorkout);
   renderToday();
   renderSettings();
@@ -2038,7 +2085,7 @@ function resetProgress() {
   if (!confirm('Reset training level to 0?')) return;
   progressionDay = 0;
   localStorage.setItem('zaryadka_day', progressionDay);
-  todayWorkout = generateWorkout();
+  todayWorkout = createWorkout();
   storage.set('zaryadka_todayWorkout', todayWorkout);
   renderToday();
   renderSettings();
@@ -2048,6 +2095,7 @@ function exportData() {
   const data = {
     exercises,
     workoutHistory,
+    generatedWorkoutHistory,
     todayWorkout,
     todayDateStr,
     strengthIndex,
@@ -2094,6 +2142,7 @@ function importData(event) {
       }
       exercises = mergeImportedExercises(data.exercises);
       workoutHistory = Array.isArray(data.workoutHistory) ? data.workoutHistory : [];
+      generatedWorkoutHistory = Array.isArray(data.generatedWorkoutHistory) ? data.generatedWorkoutHistory : [];
       todayWorkout = null;
       todayDateStr = typeof data.todayDateStr === 'string' ? data.todayDateStr : '';
       strengthIndex = Number.isFinite(Number(data.strengthIndex)) ? Number(data.strengthIndex) : strengthIndex;
@@ -2106,6 +2155,7 @@ function importData(event) {
       saveExercises();
       saveDeletedDefaultExercises();
       storage.set('zaryadka_history', workoutHistory);
+      storage.set('zaryadka_generatedWorkouts', generatedWorkoutHistory);
       storage.set('zaryadka_todayWorkout', todayWorkout);
       localStorage.setItem('zaryadka_todayDate', todayDateStr);
       localStorage.setItem('zaryadka_strengthIndex', strengthIndex);
